@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Прогнозирование рождаемости</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Прогнозирование рождаемости</h1>
+    
+    <!-- Загрузка CSV файла -->
+    <div class="form-group">
+      <label for="csvUpload">Загрузите .CSV</label>
+      <input type="file" id="csvUpload" accept=".csv">
+    </div>
+    
+    <!-- Выбор модели -->
+    <div class="form-group">
+      <label for="modelSelect">Выберите модель/метод</label>
+      <select id="modelSelect">
+        <option value="">-- Выберите модель --</option>
+        <option value="linear_regression">Линейная регрессия</option>
+        <option value="decision_tree">Дерево решений</option>
+        <option value="random_forest">Случайный лес</option>
+        <option value="neural_network">Нейронная сеть</option>
+      </select>
+    </div>
+    
+    <!-- Динамически отображаемые параметры -->
+    <div id="parameters" class="form-group">
+      <!-- Параметры выбранной модели появятся здесь -->
+    </div>
+    
+    <!-- Кнопка для обучения модели -->
+    <button id="trainButton">Обучить</button>
+  </div>
+  
+  <script src="scripts.js"></script>
+</body>
+</html>
