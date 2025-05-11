@@ -2,103 +2,102 @@
 
 const API_URL = 'http://127.0.0.1:5000';
 
-// 1) Показ параметров в зависимости от модели
+// 1) Динамика параметров
 document.getElementById('modelSelect').addEventListener('change', () => {
-  const model = document.getElementById('modelSelect').value;
-  const pDiv  = document.getElementById('parameters');
-  pDiv.innerHTML = '';
+  const m = document.getElementById('modelSelect').value;
+  const p = document.getElementById('parameters');
+  p.innerHTML = '';
 
-  if (model === 'decision_tree') {
-    pDiv.innerHTML = `
+  if (m === 'decision_tree') {
+    p.innerHTML = `
       <label for="maxDepth">Максимальная глубина дерева</label>
-      <input type="number" id="maxDepth" placeholder="Введите максимальную глубину">
+      <input type="number" id="maxDepth" placeholder="…">
     `;
-  } else if (model === 'random_forest') {
-    pDiv.innerHTML = `
-      <label for="numTrees">Количество деревьев</label>
-      <input type="number" id="numTrees" placeholder="Введите количество деревьев">
+  } else if (m === 'random_forest') {
+    p.innerHTML = `
+      <label for="numTrees">Кол-во деревьев</label>
+      <input type="number" id="numTrees" placeholder="…">
       <label for="maxDepthRF">Макс. глубина</label>
-      <input type="number" id="maxDepthRF" placeholder="Введите максимальную глубину">
+      <input type="number" id="maxDepthRF" placeholder="…">
     `;
-  } else if (model === 'neural_network') {
-    pDiv.innerHTML = `
+  } else if (m === 'neural_network') {
+    p.innerHTML = `
       <label for="layers">Слои</label>
-      <input type="number" id="layers" placeholder="Кол-во слоев">
-      <label for="neurons">Нейроны в слое</label>
-      <input type="number" id="neurons" placeholder="Нейронов">
+      <input type="number" id="layers" placeholder="…">
+      <label for="neurons">Нейроны</label>
+      <input type="number" id="neurons" placeholder="…">
       <label for="learningRate">LR</label>
-      <input type="number" id="learningRate" step="0.0001" placeholder="Скорость обучения">
+      <input type="number" id="learningRate" step="0.0001" placeholder="…">
     `;
-  } else if (model === 'linear_regression') {
-    pDiv.innerHTML = `<label>Линейная регрессия не требует параметров</label>`;
+  } else if (m === 'linear_regression') {
+    p.innerHTML = `<label>Линейная регрессия без доп. параметров</label>`;
+  } else if (m === 'sarimax') {
+    p.innerHTML = `<label>SARIMAX подбирает параметры автоматически</label>`;
   }
 });
 
-// 2) Загрузка CSV
+// 2) Загрузка всех 4 файлов
 async function uploadAll() {
   const form = new FormData();
-  ['births','deaths','migration','population'].forEach(key => {
-    const inp = document.getElementById(key);
-    if (inp.files.length) form.append(key, inp.files[0]);
+  ['births','deaths','migration','population'].forEach(id => {
+    const inp = document.getElementById(id);
+    if (inp.files.length) form.append(id, inp.files[0]);
   });
-  const missing = ['births','deaths','migration','population'].filter(k => !form.has(k));
+  const missing = ['births','deaths','migration','population']
+    .filter(id => !form.has(id));
   if (missing.length) {
-    return alert('Не выбраны файлы: ' + missing.join(', '));
+    return alert('Не выбраны: ' + missing.join(', '));
   }
   try {
-    const res = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: form });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    const js = await res.json();
-    if (js.status !== 'success') throw new Error(js.message);
-    alert('Данные загружены:\n' + JSON.stringify(js.shapes, null, 2));
-  } catch (err) {
-    console.error(err);
-    alert('Ошибка загрузки: ' + err.message);
+    const res = await fetch(`${API_URL}/api/upload`, {
+      method: 'POST', body: form
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const j = await res.json();
+    alert('Данные загружены:\n' + JSON.stringify(j.shapes, null,2));
+  } catch(e) {
+    alert('Ошибка загрузки: ' + e.message);
   }
 }
-document.getElementById('uploadButton').addEventListener('click', uploadAll);
+document.getElementById('uploadButton')
+  .addEventListener('click', uploadAll);
 
-// 3) Обучение модели и отображение результатов
+// 3) Обучение и отображение метрик + единственного графика
 async function trainModel() {
   const model = document.getElementById('modelSelect').value;
-  if (!model) return alert('Сначала выберите модель');
+  if (!model) return alert('Выберите модель');
 
+  // собираем параметры
   const params = {};
   if (model === 'decision_tree') {
-    params.maxDepth = parseInt(document.getElementById('maxDepth').value, 10);
+    params.maxDepth = +document.getElementById('maxDepth').value;
   } else if (model === 'random_forest') {
-    params.numTrees = parseInt(document.getElementById('numTrees').value, 10);
-    params.maxDepth = parseInt(document.getElementById('maxDepthRF').value, 10);
+    params.numTrees = +document.getElementById('numTrees').value;
+    params.maxDepth = +document.getElementById('maxDepthRF').value;
   } else if (model === 'neural_network') {
-    params.layers       = parseInt(document.getElementById('layers').value, 10);
-    params.neurons      = parseInt(document.getElementById('neurons').value, 10);
-    params.learningRate = parseFloat(document.getElementById('learningRate').value);
+    params.layers       = +document.getElementById('layers').value;
+    params.neurons      = +document.getElementById('neurons').value;
+    params.learningRate = +document.getElementById('learningRate').value;
   }
 
   try {
     const res = await fetch(`${API_URL}/api/model/train`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ model, params })
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model, params})
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.message || res.statusText);
-    }
+    if (!res.ok) throw new Error(await res.text());
     const js = await res.json();
 
-    // форматирование метрик, безопасно для null
-    function fmt(val, digits=3, isPct=false) {
-      if (val === null || val === undefined) return '-';
-      const num = isPct ? val * 100 : val;
-      return num.toFixed(digits) + (isPct ? '%' : '');
+    // форматирование метрик
+    function fmt(v,d=3,pct=false){
+      if (v==null) return '-';
+      const n = pct? v*100 : v;
+      return n.toFixed(d) + (pct? '%' : '');
     }
-
     document.getElementById('metricsContainer').innerHTML = `
       <table class="metrics-table">
-        <thead>
-          <tr><th>Метрика</th><th>Значение</th></tr>
-        </thead>
+        <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
         <tbody>
           <tr><td>MAE</td><td>${fmt(js.metrics.mae)}</td></tr>
           <tr><td>MSE</td><td>${fmt(js.metrics.mse)}</td></tr>
@@ -108,17 +107,14 @@ async function trainModel() {
       </table>
     `;
 
-    // показываем графики
-    const fImg = document.getElementById('forecastPlot');
-    const pImg = document.getElementById('populationPlot');
-    fImg.src = js.plot;
-    pImg.src = js.population_plot;
-    fImg.style.display = 'block';
-    pImg.style.display = 'block';
+    // единственный график population
+    const img = document.getElementById('populationPlot');
+    img.src = js.population_plot;
+    img.style.display = 'block';
 
-  } catch (err) {
-    console.error(err);
-    alert('Ошибка при обучении: ' + err.message);
+  } catch(e) {
+    alert('Ошибка при обучении: ' + e.message);
   }
 }
-document.getElementById('trainButton').addEventListener('click', trainModel);
+document.getElementById('trainButton')
+  .addEventListener('click', trainModel);

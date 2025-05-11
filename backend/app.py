@@ -84,11 +84,10 @@ def merge_full_df():
           .sort_values('Year'))
 
     # заполняем пропуски
-    df['births'].ffill(inplace=True)
-    df['deaths'].ffill(inplace=True)
-    df['migration'].fillna(0, inplace=True)
-    df['population'].ffill(inplace=True)
-    df['population'].bfill(inplace=True)
+    df['births']     = df['births'].ffill()
+    df['deaths']     = df['deaths'].ffill()
+    df['migration']  = df['migration'].fillna(0)
+    df['population'] = df['population'].ffill().bfill()
 
     # рассчитываем birth_rate (пока не используется)
     df['birth_rate'] = df['births'] / df['population'] * 1000

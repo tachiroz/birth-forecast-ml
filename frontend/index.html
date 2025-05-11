@@ -2,29 +2,29 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Прогнозирование рождаемости</title>
+  <title>Прогнозирование населения</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <h1>Прогнозирование рождаемости</h1>
+    <h1>Прогнозирование населения</h1>
 
-    <!-- Загрузка 4 CSV файлов -->
+    <!-- Загрузка 4 CSV -->
     <div class="form-group">
       <label for="births">Births (.csv)</label>
-      <input type="file" id="births" name="births" accept=".csv">
+      <input type="file" id="births" accept=".csv">
     </div>
     <div class="form-group">
       <label for="deaths">Deaths (.csv)</label>
-      <input type="file" id="deaths" name="deaths" accept=".csv">
+      <input type="file" id="deaths" accept=".csv">
     </div>
     <div class="form-group">
       <label for="migration">Migration (.csv)</label>
-      <input type="file" id="migration" name="migration" accept=".csv">
+      <input type="file" id="migration" accept=".csv">
     </div>
     <div class="form-group">
       <label for="population">Population (.csv)</label>
-      <input type="file" id="population" name="population" accept=".csv">
+      <input type="file" id="population" accept=".csv">
     </div>
 
     <button type="button" id="uploadButton">Загрузить данные</button>
@@ -43,7 +43,6 @@
       </select>
     </div>
 
-    <!-- Параметры модели -->
     <div id="parameters" class="form-group"></div>
 
     <button type="button" id="trainButton">Обучить</button>
@@ -52,10 +51,10 @@
     <!-- Метрики -->
     <div id="metricsContainer"></div>
 
-    <!-- Графики -->
+    <!-- Только один график -->
     <div id="plotContainer" style="text-align:center; margin-top:20px;">
-      <img id="forecastPlot" alt="Прогноз рождаемости" style="max-width:100%; display:none; margin-bottom:20px;">
-      <img id="populationPlot" alt="Прогноз населения"   style="max-width:100%; display:none;">
+      <img id="populationPlot" alt="Прогноз населения"
+           style="max-width:100%; display:none;">
     </div>
   </div>
 
