@@ -8,13 +8,28 @@
 <body>
   <div class="container">
     <h1>Прогнозирование рождаемости</h1>
-    
-    <!-- Загрузка CSV файла -->
+
+    <!-- Загрузка 4 CSV файлов -->
     <div class="form-group">
-      <label for="csvUpload">Загрузите .CSV</label>
-      <input type="file" id="csvUpload" accept=".csv">
+      <label for="births">Births (.csv)</label>
+      <input type="file" id="births" name="births" accept=".csv">
     </div>
-    
+    <div class="form-group">
+      <label for="deaths">Deaths (.csv)</label>
+      <input type="file" id="deaths" name="deaths" accept=".csv">
+    </div>
+    <div class="form-group">
+      <label for="migration">Migration (.csv)</label>
+      <input type="file" id="migration" name="migration" accept=".csv">
+    </div>
+    <div class="form-group">
+      <label for="population">Population (.csv)</label>
+      <input type="file" id="population" name="population" accept=".csv">
+    </div>
+
+    <button type="button" id="uploadButton">Загрузить данные</button>
+    <hr>
+
     <!-- Выбор модели -->
     <div class="form-group">
       <label for="modelSelect">Выберите модель/метод</label>
@@ -26,16 +41,23 @@
         <option value="neural_network">Нейронная сеть</option>
       </select>
     </div>
-    
-    <!-- Динамически отображаемые параметры -->
-    <div id="parameters" class="form-group">
-      <!-- Параметры выбранной модели появятся здесь -->
+
+    <!-- Параметры модели -->
+    <div id="parameters" class="form-group"></div>
+
+    <button type="button" id="trainButton">Обучить</button>
+    <hr>
+
+    <!-- Метрики -->
+    <div id="metricsContainer"></div>
+
+    <!-- Графики -->
+    <div id="plotContainer" style="text-align:center; margin-top:20px;">
+      <img id="forecastPlot" alt="Прогноз рождаемости" style="max-width:100%; display:none; margin-bottom:20px;">
+      <img id="populationPlot" alt="Прогноз населения"   style="max-width:100%; display:none;">
     </div>
-    
-    <!-- Кнопка для обучения модели -->
-    <button id="trainButton">Обучить</button>
   </div>
-  
+
   <script src="scripts.js"></script>
 </body>
 </html>

@@ -53,3 +53,19 @@ body {
     background-color: #0056b3;
   }
   
+  .metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+  }
+  .metrics-table th,
+  .metrics-table td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+  }
+  .metrics-table thead {
+    background: #007BFF;
+    color: white;
+  }
+  
