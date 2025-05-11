@@ -6,7 +6,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
 
-# matplotlib без GUI
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -28,51 +27,64 @@ BASE_DIR     = os.path.dirname(__file__)
 DATA_FOLDER  = os.path.join(BASE_DIR, 'data')
 MODEL_FOLDER = os.path.join(BASE_DIR, 'models')
 FRONTEND_DIR = os.path.join(BASE_DIR, '../frontend')
-
 os.makedirs(DATA_FOLDER,  exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
 
 # === Flask ===
-app = Flask(
-    __name__,
-    static_folder=FRONTEND_DIR,
-    static_url_path=''
-)
+app = Flask(__name__,
+            static_folder=FRONTEND_DIR,
+            static_url_path='')
 CORS(app)
 
-# === Хранилища в памяти ===
 data_store = {}
 
-# === Утилиты ===
 def read_wrapped_csv(path):
     with open(path, 'r', encoding='utf-8') as f:
         lines = [l.strip().strip('"') for l in f if l.strip()]
     return pd.read_csv(StringIO("\n".join(lines)), sep=',')
 
 def merge_full_df():
+    # проверяем загрузку
     for key in ('births','deaths','migration','population'):
         if key not in data_store:
-            raise ValueError(f"Нет данных '{key}'. Сначала /api/upload")
+            raise ValueError(f"Данные '{key}' не загружены")
 
-    df_b = data_store['births'].rename(columns={'Birth':'births','birth':'births'})
-    df_d = data_store['deaths'].rename(columns={'Died':'deaths','died':'deaths'})
-    df_m = data_store['migration']
-    df_p = data_store['population'].rename(columns={'Population':'population'})
+    # агрегируем по годам
+    df_b = (data_store['births']
+            .rename(columns={'Birth':'births','birth':'births'})
+            .groupby('Year', as_index=False)['births'].sum())
+    df_d = (data_store['deaths']
+            .rename(columns={'Died':'deaths','died':'deaths'})
+            .groupby('Year', as_index=False)['deaths'].sum())
+    df_m = (data_store['migration']
+            .groupby('Year', as_index=False)
+            .agg(come=('M_come','sum'), out=('M_out','sum')))
+    df_m['migration'] = df_m['come'] - df_m['out']
+    df_m = df_m[['Year','migration']]
+    df_p = (data_store['population']
+            .rename(columns={'Population':'population'})
+            .groupby('Year', as_index=False)['population'].sum())
 
-    births     = df_b.groupby('Year', as_index=False)['births'].sum()
-    deaths     = df_d.groupby('Year', as_index=False)['deaths'].sum()
-    mig        = df_m.groupby('Year', as_index=False).agg(
-                    come=('M_come','sum'),
-                    out =('M_out' ,'sum')
-                 )
-    mig['migration'] = mig['come'] - mig['out']
-    population = df_p.groupby('Year', as_index=False)['population'].sum()
+    # outer-слияние, чтобы взять весь период
+    df = (df_b.merge(df_d, on='Year', how='outer')
+             .merge(df_m, on='Year', how='outer')
+             .merge(df_p, on='Year', how='outer')
+             .sort_values('Year'))
 
-    df = (births
-          .merge(deaths,    on='Year')
-          .merge(mig[['Year','migration']], on='Year')
-          .merge(population,on='Year'))
+    # заполняем пустые:
+    df['births'].ffill(inplace=True)      # берем последнее известное
+    df['deaths'].ffill(inplace=True)
+    df['migration'].fillna(0, inplace=True)
+    df['population'].ffill(inplace=True)
+    df['population'].bfill(inplace=True)
+
+    # рассчитываем birth_rate
     df['birth_rate'] = df['births'] / df['population'] * 1000
+
+    # отрежем лишние годы, где родов не было в исходных данных
+    max_birth_year = data_store['births']['Year'].max()
+    df = df[df['Year'] <= max_birth_year]
+
     return df
 
 def build_model(name, params):
@@ -96,103 +108,95 @@ def build_model(name, params):
         )
     raise ValueError('Неизвестная модель')
 
-# === Маршруты ===
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
 
 @app.route('/api/upload', methods=['POST'])
 def upload_files():
-    expected = ['births','deaths','migration','population']
+    keys = ['births','deaths','migration','population']
     shapes = {}
-    for key in expected:
-        f = request.files.get(key)
+    for k in keys:
+        f = request.files.get(k)
         if not f or not f.filename.lower().endswith('.csv'):
-            return jsonify({'status':'error','message':f'Нет "{key}" или не .csv'}), 400
-        path = os.path.join(DATA_FOLDER, f"{key}.csv")
+            return jsonify({'status':'error','message':f'Нет "{k}" или не .csv'}),400
+        path = os.path.join(DATA_FOLDER, f"{k}.csv")
         f.save(path)
         try:
             df = read_wrapped_csv(path)
         except Exception as e:
-            return jsonify({'status':'error','message':str(e)}), 400
-        data_store[key] = df
-        shapes[key] = df.shape
+            return jsonify({'status':'error','message':str(e)}),400
+        data_store[k] = df
+        shapes[k] = df.shape
     return jsonify({'status':'success','shapes':shapes})
 
 @app.route('/api/model/train', methods=['POST'])
 def train_model():
     payload    = request.get_json(force=True)
     model_name = payload.get('model')
-    params     = payload.get('params', {})
+    params     = payload.get('params',{})
 
-    # 1) Собираем полный DF
     df = merge_full_df()
 
-    # 2) Time-split
     years = sorted(df['Year'].unique())
-    split_idx = int(len(years) * 0.8)
-    cutoff_year = years[split_idx]
+    split_i = int(len(years)*0.8)
+    cutoff = years[split_i]
 
-    train_df = df[df['Year'] <= cutoff_year]
-    test_df  = df[df['Year'] >  cutoff_year]
+    train_df = df[df['Year'] <= cutoff]
+    test_df  = df[df['Year'] >  cutoff]
 
-    # 3) X и y
-    X_train = train_df[['Year','births','deaths','migration','population']]
+    # — убираем births из фич, чтобы модель не «видела» целевую переменную
+    X_train = train_df[['Year','deaths','migration','population']]
     y_train = train_df['birth_rate']
-    X_test  = test_df[['Year','births','deaths','migration','population']]
+    X_test  = test_df[['Year','deaths','migration','population']]
     y_test  = test_df['birth_rate']
 
-    # 4) Обучаем
     model = build_model(model_name, params)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
-    # 5) Метрики
+    # метрики
     import math
-    mae  = mean_absolute_error(y_test, y_pred)
-    mse  = mean_squared_error(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
     try:
         mape = mean_absolute_percentage_error(y_test, y_pred)
         if math.isnan(mape): mape = None
-    except:
-        mape = None
+    except: mape = None
     try:
-        r2   = r2_score(y_test, y_pred)
-        if math.isnan(r2):   r2   = None
-    except:
-        r2   = None
+        r2  = r2_score(y_test, y_pred)
+        if math.isnan(r2):  r2  = None
+    except: r2 = None
 
-    # 6) Рисуем birth_rate
+    # — график birth_rate —
     plt.figure(figsize=(8,4))
     plt.plot(df['Year'], df['birth_rate'], color='black', label='История')
     plt.plot(test_df['Year'], y_pred,
-             linestyle='--', color='tab:blue', label='Прогноз')
-    plt.axvline(cutoff_year + 0.5, linestyle='--', color='gray')
+             linestyle='--', marker='o', color='tab:blue', label='Прогноз')
+    plt.axvline(cutoff+0.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Birth rate'); plt.legend()
     buf1 = BytesIO(); plt.tight_layout(); plt.savefig(buf1, format='png'); plt.close()
     buf1.seek(0)
-    birth_plot = base64.b64encode(buf1.read()).decode('utf-8')
+    plot_birth = base64.b64encode(buf1.read()).decode('utf-8')
 
-    # 7) Рисуем population
+    # — график population —
     plt.figure(figsize=(8,4))
     plt.plot(df['Year'], df['population'], color='black', label='История')
     plt.plot(test_df['Year'], test_df['population'],
-             linestyle='--', color='tab:green', label='Тест (факт)')
-    plt.axvline(cutoff_year + 0.5, linestyle='--', color='gray')
+             linestyle='--', marker='o', color='tab:green', label='Тест (факт)')
+    plt.axvline(cutoff+0.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend()
     buf2 = BytesIO(); plt.tight_layout(); plt.savefig(buf2, format='png'); plt.close()
     buf2.seek(0)
-    pop_plot = base64.b64encode(buf2.read()).decode('utf-8')
+    plot_pop = base64.b64encode(buf2.read()).decode('utf-8')
 
-    # 8) Сохраняем модель
     joblib.dump(model, os.path.join(MODEL_FOLDER, f'model_{model_name}.joblib'))
 
-    # 9) Ответ
     return jsonify({
-        'status': 'success',
-        'metrics': {'mae': mae, 'mse': mse, 'mape': mape, 'r2': r2},
-        'plot': f'data:image/png;base64,{birth_plot}',
-        'population_plot': f'data:image/png;base64,{pop_plot}'
+        'status':'success',
+        'metrics':{'mae':mae,'mse':mse,'mape':mape,'r2':r2},
+        'plot': f'data:image/png;base64,{plot_birth}',
+        'population_plot': f'data:image/png;base64,{plot_pop}'
     })
 
 if __name__ == '__main__':
