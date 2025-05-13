@@ -1,3 +1,5 @@
+# app.py
+
 import os
 import base64
 import pickle
@@ -74,9 +76,10 @@ def merge_full_df():
     df_p = (data_store['population']
             .rename(columns={'Population':'population'})
             .groupby('Year',as_index=False)['population'].sum())
-    df = (df_b.merge(df_d,on='Year',how='outer')
-             .merge(df_m,on='Year',how='outer')
-             .merge(df_p,on='Year',how='outer')
+
+    df = (df_b.merge(df_d, on='Year', how='outer')
+             .merge(df_m, on='Year', how='outer')
+             .merge(df_p, on='Year', how='outer')
              .sort_values('Year'))
     df['births']     = df['births'].ffill()
     df['deaths']     = df['deaths'].ffill()
@@ -125,8 +128,8 @@ def upload_files():
     for key in expected:
         f = request.files.get(key)
         if not f or not f.filename.lower().endswith('.csv'):
-            return jsonify({'status':'error','message':f'Нет "{key}" или не .csv'}),400
-        path = os.path.join(DATA_FOLDER,f"{key}.csv")
+            return jsonify({'status':'error','message':f'Нет "{key}" или не .csv'}), 400
+        path = os.path.join(DATA_FOLDER, f"{key}.csv")
         f.save(path)
         data_store[key] = read_wrapped_csv(path)
         shapes[key] = data_store[key].shape
@@ -134,9 +137,9 @@ def upload_files():
 
 @app.route('/api/model/train', methods=['POST'])
 def train_model():
-    payload = request.get_json(force=True)
+    payload    = request.get_json(force=True)
     model_name = payload.get('model')
-    params     = payload.get('params',{})
+    params     = payload.get('params', {})
 
     df       = merge_full_df()
     train_df = df[df['Year'] <= 2021]
@@ -144,26 +147,25 @@ def train_model():
     y_train  = train_df['population']
     y_test   = test_df['population']
 
-    # Prophet
+    # ===========================
+    # 1) Обучаем выбранную модель
+    # ===========================
     if model_name == 'prophet':
         ds = train_df[['Year','population']].rename(columns={'Year':'ds','population':'y'})
-        ds['ds'] = pd.to_datetime(ds['ds'],format='%Y')
+        ds['ds'] = pd.to_datetime(ds['ds'], format='%Y')
         m = Prophet(
             changepoint_prior_scale=params.get('changepointPriorScale',0.05),
             seasonality_mode=params.get('seasonalityMode','additive')
         )
         m.fit(ds)
-        future = m.make_future_dataframe(periods=len(test_df),freq='Y')
-        fc = m.predict(future)
-        y_pred = fc['yhat'].iloc[-len(test_df):].values
-        model = m
+        future   = m.make_future_dataframe(periods=len(test_df), freq='Y')
+        forecast = m.predict(future)
+        y_pred   = forecast['yhat'].iloc[-len(test_df):].values
 
-    # SARIMAX
     elif model_name == 'sarimax':
         warnings.filterwarnings("ignore")
-        # Берём гиперпараметры или дефолт
-        order = tuple(params.get('order',[1,1,1]))
-        seas  = tuple(params.get('seasonal_order',[0,1,0,1]))
+        order = tuple(params.get('order', [1,1,1]))
+        seas  = tuple(params.get('seasonal_order', [0,0,0,2]))
         m = SARIMAX(
             y_train,
             order=order,
@@ -171,105 +173,140 @@ def train_model():
             enforce_stationarity=False,
             enforce_invertibility=False
         ).fit(disp=False)
-        y_pred = m.predict(start=len(train_df), end=len(train_df)+len(test_df)-1)
-        model = m
+        y_pred = m.predict(
+            start=len(train_df),
+            end=len(train_df)+len(test_df)-1
+        )
 
-    # ML
     else:
         X_cols  = ['Year','births','deaths','migration']
         X_train = train_df[X_cols]
         X_test  = test_df[X_cols]
-        mld = build_ml_model(model_name, params)
-        mld.fit(X_train, y_train)
-        y_pred = mld.predict(X_test)
-        model = mld
+        m = build_ml_model(model_name, params)
+        m.fit(X_train, y_train)
+        y_pred = m.predict(X_test)
 
-    # Метрики
-    mae  = mean_absolute_error(y_test,y_pred)
-    mse  = mean_squared_error(y_test,y_pred)
-    mape = mean_absolute_percentage_error(y_test,y_pred)
-    r2   = r2_score(y_test,y_pred)
+    # ===========================
+    # 2) Считаем метрики
+    # ===========================
+    mae  = mean_absolute_error(y_test, y_pred)
+    mse  = mean_squared_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)
+    r2   = r2_score(y_test, y_pred)
     mape = None if np.isnan(mape) else mape
     r2   = None if np.isnan(r2)   else r2
 
-    # График population
+    # ===========================
+    # 3) График train + test
+    # ===========================
     plt.figure(figsize=(8,4))
-    plt.plot(df['Year'],df['population'],color='black',label='История')
-    plt.plot(test_df['Year'],y_pred,linestyle='--',marker='o',color='tab:blue',label='Прогноз')
-    plt.axvline(2021.5,linestyle='--',color='gray')
+    plt.plot(df['Year'], df['population'], color='black', label='История')
+    plt.plot(test_df['Year'], y_pred,
+             linestyle='--', marker='o', color='tab:blue', label='Прогноз')
+    plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend()
-    buf = BytesIO(); plt.tight_layout(); plt.savefig(buf,format='png'); plt.close(); buf.seek(0)
+    buf = BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png')
+    plt.close()
+    buf.seek(0)
     pop_plot = base64.b64encode(buf.read()).decode('utf-8')
 
-    # Сохраняем модель
-    with open(os.path.join(MODEL_FOLDER,f'model_{model_name}.pkl'),'wb') as f:
-        pickle.dump(model,f)
+    # ===========================
+    # 4) Сохраняем модель
+    # ===========================
+    model_path = os.path.join(MODEL_FOLDER, f'model_{model_name}.pkl')
+    with open(model_path, 'wb') as f:
+        pickle.dump(m, f)
 
     return jsonify({
-        'status':'success',
-        'metrics':{'mae':mae,'mse':mse,'mape':mape,'r2':r2},
-        'population_plot':f'data:image/png;base64,{pop_plot}'
+        'status': 'success',
+        'metrics': { 'mae': mae, 'mse': mse, 'mape': mape, 'r2': r2 },
+        'population_plot': f'data:image/png;base64,{pop_plot}'
     })
 
 @app.route('/api/model/forecast', methods=['POST'])
 def forecast_future():
     data       = request.get_json(force=True)
     model_name = data.get('model')
-    horizon    = int(data.get('horizon',5))
+    horizon    = int(data.get('horizon', 5))
 
     df      = merge_full_df()
     train   = df[df['Year'] <= 2021]
     y_train = train['population']
-    years   = list(range(2022,2022+horizon))
 
-    # Prophet
+    # начинаем прогнозировать с 2024-го года
+    start_year = 2024
+    years      = list(range(start_year, start_year + horizon))
+
+    # ===========================
+    # 1) Загружаем модель и делаем прогноз
+    # ===========================
     if model_name == 'prophet':
-        with open(os.path.join(MODEL_FOLDER,'model_prophet.pkl'),'rb') as f:
+        with open(os.path.join(MODEL_FOLDER,'model_prophet.pkl'), 'rb') as f:
             m = pickle.load(f)
-        future = m.make_future_dataframe(periods=horizon,freq='Y')
-        fc = m.predict(future)
-        y_pred = fc['yhat'].iloc[-horizon:].values
+        last_year = train['Year'].max()
+        # сколько шагов до 2024 и дальше
+        steps = (start_year - last_year) + horizon
+        future   = m.make_future_dataframe(periods=steps, freq='Y')
+        forecast = m.predict(future)
+        # берём последние 'horizon' значений
+        y_pred = forecast['yhat'].iloc[-horizon:].values
 
-    # SARIMAX
     elif model_name == 'sarimax':
-        with open(os.path.join(MODEL_FOLDER,'model_sarimax.pkl'),'rb') as f:
+        with open(os.path.join(MODEL_FOLDER,'model_sarimax.pkl'), 'rb') as f:
             m = pickle.load(f)
         y_pred = m.forecast(steps=horizon)
 
-    # ML
     else:
         with open(os.path.join(MODEL_FOLDER,f'model_{model_name}.pkl'),'rb') as f:
             m = pickle.load(f)
         last = train.iloc[-1]
         Xf = pd.DataFrame({
-            'Year': years,
-            'births':   [last['births']]*horizon,
-            'deaths':   [last['deaths']]*horizon,
-            'migration':[last['migration']]*horizon
+            'Year':      years,
+            'births':    [last['births']]   * horizon,
+            'deaths':    [last['deaths']]   * horizon,
+            'migration': [last['migration']]* horizon
         })
         y_pred = m.predict(Xf)
 
-    # Таблица 2024+
+    # ===========================
+    # 2) Собираем таблицу сравнения (все годы с 2024)
+    # ===========================
     table = []
-    for yr,p in zip(years,y_pred):
-        if yr<2024: continue
-        ros = ROSSTAT_FORECAST.get(yr)
-        diff = None if ros is None else float(p-ros)
-        diff_pct = None if (ros is None or ros==0) else diff/ros*100
-        table.append({'year':yr,'model':float(p),'rosstat':ros,'diff':diff,'diff_pct':diff_pct})
+    for yr, p in zip(years, y_pred):
+        ros      = ROSSTAT_FORECAST.get(yr)
+        diff     = None if ros is None else float(p - ros)
+        diff_pct = None if (ros is None or ros == 0) else diff/ros*100
+        table.append({
+            'year':    yr,
+            'model':   float(p),
+            'rosstat': ros,
+            'diff':    diff,
+            'diff_pct':diff_pct
+        })
 
-    # Финальный график
+    # ===========================
+    # 3) Финальный график
+    # ===========================
     plt.figure(figsize=(10,5))
-    plt.plot(df['Year'],df['population'],color='black',label='История')
-    plt.plot(years,y_pred,linestyle='--',marker='o',color='tab:blue',label='Прогноз')
-    plt.plot(years,[ROSSTAT_FORECAST.get(y,np.nan) for y in years],
-             linestyle='--',marker='o',color='tab:red',label='Rosstat')
-    plt.axvline(2021.5,linestyle='--',color='gray')
+    plt.plot(df['Year'], df['population'], color='black', label='История')
+    plt.plot(years, y_pred,
+             linestyle='--', marker='o', color='tab:blue', label='Прогноз')
+    plt.plot(years,
+             [ROSSTAT_FORECAST.get(y, np.nan) for y in years],
+             linestyle='--', marker='o', color='tab:red', label='Rosstat')
+    plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend(); plt.grid(True)
-    buf = BytesIO(); plt.tight_layout(); plt.savefig(buf,format='png'); plt.close(); buf.seek(0)
+    buf = BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png')
+    plt.close()
+    buf.seek(0)
     img = base64.b64encode(buf.read()).decode('utf-8')
 
-    return jsonify({'image':f'data:image/png;base64,{img}','table':table})
+    return jsonify({ 'image': f'data:image/png;base64,{img}', 'table': table })
+
 
 if __name__ == '__main__':
     app.run(debug=True)
