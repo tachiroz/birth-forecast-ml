@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.svm import SVR
 from xgboost import XGBRegressor
 from prophet import Prophet
 from statsmodels.tsa.statespace.sarimax import SARIMAX
@@ -53,12 +55,10 @@ ROSSTAT_FORECAST = {
     2044:1289493,2045:1283203,2046:1276946
 }
 
-
 def read_wrapped_csv(path):
     with open(path, 'r', encoding='utf-8') as f:
         lines = [l.strip().strip('"') for l in f if l.strip()]
     return pd.read_csv(StringIO("\n".join(lines)), sep=',')
-
 
 def merge_full_df():
     for key in ('births','deaths','migration','population'):
@@ -90,29 +90,39 @@ def merge_full_df():
     df['birth_rate'] = df['births'] / df['population'] * 1000
     return df
 
-
 def build_ml_model(name, params):
     if name == 'linear_regression':
         return LinearRegression(**params)
     if name == 'random_forest':
         return RandomForestRegressor(
-            n_estimators=params.get('n_estimators',100),
-            max_depth=params.get('max_depth',None)
+            n_estimators=params.get('n_estimators', 100),
+            max_depth=params.get('max_depth', None)
         )
     if name == 'xgboost':
         return XGBRegressor(
-            n_estimators=params.get('n_estimators',100),
-            max_depth=params.get('max_depth',6),
-            learning_rate=params.get('learning_rate',0.3),
+            n_estimators=params.get('n_estimators', 100),
+            max_depth=params.get('max_depth', 6),
+            learning_rate=params.get('learning_rate', 0.3),
             verbosity=0
         )
+    if name == 'neural_network':
+        return MLPRegressor(
+            hidden_layer_sizes=tuple(params.get('hidden_layer_sizes', [100])),
+            alpha=params.get('alpha', 0.0001),
+            learning_rate_init=params.get('learning_rate_init', 0.001),
+            max_iter=500
+        )
+    if name == 'svr':
+        return SVR(
+            kernel=params.get('kernel', 'rbf'),
+            C=params.get('C', 1.0),
+            gamma=params.get('gamma', 'scale')
+        )
     raise ValueError(f'Неизвестная ML-модель {name}')
-
 
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
-
 
 @app.route('/api/upload', methods=['POST'])
 def upload_files():
@@ -128,7 +138,6 @@ def upload_files():
         data_store[key] = df
         shapes[key] = df.shape
     return jsonify({'status':'success','shapes':shapes})
-
 
 @app.route('/api/model/train', methods=['POST'])
 def train_model():
@@ -148,8 +157,8 @@ def train_model():
         df_p = train_df[['Year','population']].rename(columns={'Year':'ds','population':'y'})
         df_p['ds'] = pd.to_datetime(df_p['ds'], format='%Y')
         m = Prophet(
-            changepoint_prior_scale=params.get('changepointPriorScale',0.05),
-            seasonality_mode=params.get('seasonalityMode','additive')
+            changepoint_prior_scale=params.get('changepointPriorScale', 0.05),
+            seasonality_mode=params.get('seasonalityMode', 'additive')
         )
         m.fit(df_p)
         future = m.make_future_dataframe(periods=len(test_df), freq='Y')
@@ -170,7 +179,7 @@ def train_model():
         y_pred = m.predict(start=len(train_df), end=len(train_df)+len(test_df)-1)
         model = m
 
-    # ML: linear_regression, random_forest, xgboost
+    # ML models (linear, rf, xgb, nn, svr)
     else:
         X_cols  = ['Year','births','deaths','migration']
         X_train = train_df[X_cols]
@@ -195,7 +204,9 @@ def train_model():
              linestyle='--', marker='o', color='tab:blue', label='Прогноз')
     plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend()
-    buf = BytesIO(); plt.tight_layout(); plt.savefig(buf, format='png'); plt.close(); buf.seek(0)
+    buf = BytesIO()
+    plt.tight_layout(); plt.savefig(buf, format='png'); plt.close()
+    buf.seek(0)
     pop_plot = base64.b64encode(buf.read()).decode('utf-8')
 
     # Сохранение модели
@@ -205,34 +216,31 @@ def train_model():
 
     return jsonify({
         'status':'success',
-        'metrics': {'mae':mae,'mse':mse,'mape':mape,'r2':r2},
+        'metrics': {'mae':mae, 'mse':mse, 'mape':mape, 'r2':r2},
         'population_plot': f'data:image/png;base64,{pop_plot}'
     })
-
 
 @app.route('/api/model/forecast', methods=['POST'])
 def forecast_future():
     data       = request.get_json(force=True)
     model_name = data.get('model')
-    horizon    = int(data.get('horizon',5))
+    horizon    = int(data.get('horizon', 5))
 
     df    = merge_full_df()
     train = df[df['Year'] <= 2021]
     y_train = train['population']
 
-    years_all = list(range(2022, 2022 + horizon))
+    years = list(range(2022, 2022 + horizon))
 
-    # Prophet forecast (if needed)
+    # Prophet forecast
     if model_name == 'prophet':
-        # load model
-        with open(os.path.join(MODEL_FOLDER,'model_prophet.pkl'),'rb') as f:
+        with open(os.path.join(MODEL_FOLDER, 'model_prophet.pkl'), 'rb') as f:
             m = pickle.load(f)
         future = m.make_future_dataframe(periods=horizon, freq='Y')
         forecast = m.predict(future)
-        # only last horizon
         y_pred = forecast['yhat'].iloc[-horizon:].values
 
-    # SARIMAX
+    # SARIMAX forecast
     elif model_name == 'sarimax':
         m = SARIMAX(
             y_train,
@@ -243,48 +251,47 @@ def forecast_future():
         ).fit(disp=False)
         y_pred = m.forecast(steps=horizon)
 
-    # ML models
-    elif model_name in ('linear_regression','random_forest','xgboost'):
-        with open(os.path.join(MODEL_FOLDER, f'model_{model_name}.pkl'),'rb') as f:
+    # ML forecast
+    elif model_name in ('linear_regression','random_forest','xgboost','neural_network','svr'):
+        with open(os.path.join(MODEL_FOLDER, f'model_{model_name}.pkl'), 'rb') as f:
             m = pickle.load(f)
         last = df[df['Year'] <= 2021].iloc[-1]
-        fb, fd, fm = last['births'], last['deaths'], last['migration']
         X_future = pd.DataFrame({
-            'Year': years_all,
-            'births': [fb]*horizon,
-            'deaths': [fd]*horizon,
-            'migration': [fm]*horizon
+            'Year': years,
+            'births': [last['births']]*horizon,
+            'deaths': [last['deaths']]*horizon,
+            'migration': [last['migration']]*horizon
         })
         y_pred = m.predict(X_future)
 
     else:
-        return jsonify({'status':'error','message':'Unknown model for forecast'}),400
+        return jsonify({'status':'error','message':'Unknown model'}), 400
 
-    # build comparison table from 2024
+    # Таблица сравнения с 2024+
     table = []
-    for yr, p in zip(years_all, y_pred):
-        if yr < 2024:
-            continue
+    for yr, p in zip(years, y_pred):
+        if yr < 2024: continue
         ros = ROSSTAT_FORECAST.get(yr)
         diff = None if ros is None else float(p - ros)
-        diff_pct = None if (ros is None or ros==0) else diff/ros*100
+        diff_pct = None if (ros is None or ros == 0) else diff/ros*100
         table.append({'year':yr,'model':float(p),'rosstat':ros,'diff':diff,'diff_pct':diff_pct})
 
-    # plot future
+    # График будущего
     plt.figure(figsize=(10,5))
     plt.plot(df['Year'], df['population'], color='black', label='История')
-    plt.plot(years_all, y_pred,
+    plt.plot(years, y_pred,
              linestyle='--', marker='o', color='tab:blue', label='Прогноз')
-    plt.plot(years_all,
-             [ROSSTAT_FORECAST.get(y, np.nan) for y in years_all],
-             linestyle='--', marker='o', color='tab:red',  label='Rosstat')
+    plt.plot(years,
+             [ROSSTAT_FORECAST.get(y, np.nan) for y in years],
+             linestyle='--', marker='o', color='tab:red', label='Rosstat')
     plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend(); plt.grid(True)
-    buf = BytesIO(); plt.tight_layout(); plt.savefig(buf, format='png'); plt.close(); buf.seek(0)
+    buf = BytesIO()
+    plt.tight_layout(); plt.savefig(buf, format='png'); plt.close()
+    buf.seek(0)
     img = base64.b64encode(buf.read()).decode('utf-8')
 
     return jsonify({'image':f'data:image/png;base64,{img}','table':table})
-
 
 if __name__ == '__main__':
     app.run(debug=True)
