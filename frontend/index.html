@@ -9,7 +9,7 @@
   <div class="container">
     <h1>Прогнозирование населения</h1>
 
-    <!-- Загрузка данных -->
+    <!-- 1. Загрузка CSV -->
     <div class="form-group">
       <label for="births">Births (.csv)</label>
       <input type="file" id="births" accept=".csv">
@@ -29,23 +29,29 @@
     <button id="uploadButton">Загрузить данные</button>
     <hr>
 
-    <!-- Выбор модели -->
+    <!-- 2. Выбор модели -->
     <div class="form-group">
       <label for="modelSelect">Модель</label>
       <select id="modelSelect">
         <option value="">-- Выберите --</option>
+        <option value="linear_regression">Linear Regression</option>
+        <option value="prophet">Prophet</option>
+        <option value="random_forest">Random Forest</option>
+        <option value="xgboost">XGBoost</option>
         <option value="sarimax">SARIMAX</option>
       </select>
     </div>
+
+    <!-- 3. Параметры модели -->
     <div id="parameters" class="form-group"></div>
     <button id="trainButton">Обучить</button>
     <hr>
 
-    <!-- Метрики -->
+    <!-- 4. Метрики -->
     <div id="metricsContainer"></div>
     <hr>
 
-    <!-- Горизонт прогноза -->
+    <!-- 5. Горизонт прогноза -->
     <div class="form-group">
       <label for="horizonSlider">
         Горизонт прогноза: <span id="horizonValue">5</span> лет
@@ -55,16 +61,16 @@
     <button id="forecastButton" disabled>Прогнозировать</button>
     <hr>
 
-    <!-- Графики -->
+    <!-- 6. Графики -->
     <div id="plotContainer" style="text-align:center;">
-      <!-- график train+test -->
+      <!-- train+test -->
       <img id="populationPlot" alt="Train/Test Population" style="max-width:100%; display:none; margin-bottom:20px;">
-      <!-- график будущего прогноза -->
+      <!-- будущее -->
       <img id="futurePlot"     alt="Future Forecast"    style="max-width:100%; display:none;">
     </div>
     <hr>
 
-    <!-- Таблица сравнения -->
+    <!-- 7. Таблица сравнения -->
     <div id="compareTableContainer"></div>
   </div>
 
