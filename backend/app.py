@@ -157,7 +157,7 @@ def train_model():
     mape = None if np.isnan(mape) else mape
     r2   = None if np.isnan(r2) else r2
 
-    # график population
+    # график train+test
     plt.figure(figsize=(8,4))
     plt.plot(df['Year'], df['population'], color='black', label='История')
     plt.plot(test_df['Year'], y_pred,
@@ -186,13 +186,14 @@ ROSSTAT_FORECAST = {
 
 @app.route('/api/model/forecast', methods=['POST'])
 def forecast_future():
-    data       = request.get_json(force=True)
-    horizon    = int(data.get('horizon',5))
+    data    = request.get_json(force=True)
+    horizon = int(data.get('horizon', 5))
 
     df = merge_full_df()
     train = df[df['Year'] <= 2021]
     y_train = train['population']
 
+    # SARIMAX без сезонности
     m = SARIMAX(
         y_train,
         order=(1,1,1),
@@ -201,28 +202,46 @@ def forecast_future():
         enforce_invertibility=False
     ).fit(disp=False)
 
-    pred = m.forecast(steps=horizon)
-    years = list(range(2022, 2022+horizon))
+    # forecast steps = horizon + 2 (для 2022 и 2023)
+    total_steps = horizon + 2
+    pred = m.forecast(steps=total_steps)
+    all_years = list(range(2022, 2022 + total_steps))
 
-    ros_list = [ ROSSTAT_FORECAST.get(y, np.nan) for y in years ]
-
+    # сформируем таблицу только с 2024 и далее
     table = []
-    for yr, p, ros in zip(years, pred, ros_list):
-        diff = None if np.isnan(ros) else float(p - ros)
-        diff_pct = None if (np.isnan(ros) or ros == 0) else diff/ros*100
-        table.append({'year':yr,'model':float(p),'rosstat':None if np.isnan(ros) else ros,'diff':diff,'diff_pct':diff_pct})
+    for yr, p in zip(all_years, pred):
+        if yr < 2024:
+            continue
+        ros = ROSSTAT_FORECAST.get(yr)
+        diff = None if ros is None else float(p - ros)
+        diff_pct = None if (ros is None or ros == 0) else diff/ros*100
+        table.append({
+            'year': yr,
+            'model': float(p),
+            'rosstat': ros,
+            'diff': diff,
+            'diff_pct': diff_pct
+        })
 
+    # финальный график: история + SARIMAX + Rosstat
     plt.figure(figsize=(10,5))
     plt.plot(df['Year'], df['population'], color='black', label='История')
-    plt.plot(years, pred, linestyle='--', marker='o', color='tab:blue', label='SARIMAX')
-    plt.plot(years, ros_list, linestyle='--', marker='o', color='tab:red',  label='Rosstat')
+    plt.plot(all_years, pred,
+             linestyle='--', marker='o', color='tab:blue', label='SARIMAX')
+    plt.plot(all_years,
+             [ROSSTAT_FORECAST.get(y, np.nan) for y in all_years],
+             linestyle='--', marker='o', color='tab:red', label='Rosstat')
     plt.axvline(2021.5, linestyle='--', color='gray')
-    plt.xlabel('Year'); plt.ylabel('Population'); plt.legend(); plt.grid(True)
+    plt.xlabel('Year'); plt.ylabel('Population')
+    plt.legend(); plt.grid(True)
     buf = BytesIO(); plt.tight_layout(); plt.savefig(buf, format='png'); plt.close()
     buf.seek(0)
-    img = base64.b64encode(buf.read()).decode('utf-8')
+    img_b64 = base64.b64encode(buf.read()).decode('utf-8')
 
-    return jsonify({'image':f'data:image/png;base64,{img}','table':table})
+    return jsonify({
+        'image': f'data:image/png;base64,{img_b64}',
+        'table': table
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

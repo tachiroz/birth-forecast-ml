@@ -10,10 +10,22 @@
     <h1>Прогнозирование населения</h1>
 
     <!-- Загрузка данных -->
-    <div class="form-group"><label>Births (.csv)</label><input type="file" id="births" accept=".csv"></div>
-    <div class="form-group"><label>Deaths (.csv)</label><input type="file" id="deaths" accept=".csv"></div>
-    <div class="form-group"><label>Migration (.csv)</label><input type="file" id="migration" accept=".csv"></div>
-    <div class="form-group"><label>Population (.csv)</label><input type="file" id="population" accept=".csv"></div>
+    <div class="form-group">
+      <label for="births">Births (.csv)</label>
+      <input type="file" id="births" accept=".csv">
+    </div>
+    <div class="form-group">
+      <label for="deaths">Deaths (.csv)</label>
+      <input type="file" id="deaths" accept=".csv">
+    </div>
+    <div class="form-group">
+      <label for="migration">Migration (.csv)</label>
+      <input type="file" id="migration" accept=".csv">
+    </div>
+    <div class="form-group">
+      <label for="population">Population (.csv)</label>
+      <input type="file" id="population" accept=".csv">
+    </div>
     <button id="uploadButton">Загрузить данные</button>
     <hr>
 
@@ -43,10 +55,14 @@
     <button id="forecastButton" disabled>Прогнозировать</button>
     <hr>
 
-    <!-- График -->
+    <!-- Графики -->
     <div id="plotContainer" style="text-align:center;">
-      <img id="futurePlot" alt="Прогноз населения" style="max-width:100%; display:none;">
+      <!-- график train+test -->
+      <img id="populationPlot" alt="Train/Test Population" style="max-width:100%; display:none; margin-bottom:20px;">
+      <!-- график будущего прогноза -->
+      <img id="futurePlot"     alt="Future Forecast"    style="max-width:100%; display:none;">
     </div>
+    <hr>
 
     <!-- Таблица сравнения -->
     <div id="compareTableContainer"></div>
