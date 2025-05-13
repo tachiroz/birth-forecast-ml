@@ -2,14 +2,15 @@
 
 const API_URL = 'http://127.0.0.1:5000';
 
-// 1) Загрузка CSV
+// 1) Загрузка CSV-файлов
 document.getElementById('uploadButton').onclick = async () => {
   const form = new FormData();
   ['births','deaths','migration','population'].forEach(id => {
     const inp = document.getElementById(id);
     if (inp.files.length) form.append(id, inp.files[0]);
   });
-  const missing = ['births','deaths','migration','population'].filter(id => !form.has(id));
+  const missing = ['births','deaths','migration','population']
+    .filter(id => !form.has(id));
   if (missing.length) {
     alert('Не выбраны: ' + missing.join(', '));
     return;
@@ -24,7 +25,7 @@ document.getElementById('uploadButton').onclick = async () => {
   }
 };
 
-// 2) Показ гиперпараметров в зависимости от модели
+// 2) Показ полей гиперпараметров
 document.getElementById('modelSelect').onchange = () => {
   const m = document.getElementById('modelSelect').value;
   const p = document.getElementById('parameters');
@@ -51,7 +52,7 @@ document.getElementById('modelSelect').onchange = () => {
         <label>n_estimators</label>
         <input type="number" id="rfEstimators" value="100">
         <label>max_depth</label>
-        <input type="number" id="rfMaxDepth" value="">
+        <input type="number" id="rfMaxDepth" placeholder="None">
       `;
       break;
 
@@ -68,7 +69,7 @@ document.getElementById('modelSelect').onchange = () => {
 
     case 'neural_network':
       p.innerHTML = `
-        <label>hidden_layer_sizes (напр. "100,50")</label>
+        <label>hidden_layer_sizes (например "100,50")</label>
         <input type="text" id="nnHidden" value="100">
         <label>alpha</label>
         <input type="number" step="0.0001" id="nnAlpha" value="0.0001">
@@ -93,7 +94,17 @@ document.getElementById('modelSelect').onchange = () => {
       break;
 
     case 'sarimax':
-      p.innerHTML = `<em>Без гиперпараметров (будет использоваться (1,1,1)).</em>`;
+      p.innerHTML = `
+        <label>order (p,d,q)</label><br>
+        <input type="number" id="sarimaxP" value="1" min="0">,
+        <input type="number" id="sarimaxD" value="1" min="0">,
+        <input type="number" id="sarimaxQ" value="1" min="0"><br>
+        <label>seasonal_order (P,D,Q,s)</label><br>
+        <input type="number" id="sarimaxSP" value="0" min="0">,
+        <input type="number" id="sarimaxSD" value="0" min="0">,
+        <input type="number" id="sarimaxSQ" value="0" min="0">,
+        <input type="number" id="sarimaxS"  value="2" min="2">
+      `;
       break;
   }
 };
@@ -106,48 +117,64 @@ document.getElementById('trainButton').onclick = async () => {
     return;
   }
 
-  // Собираем параметры
   const params = {};
   if (model === 'prophet') {
     params.changepointPriorScale = parseFloat(document.getElementById('changepointPriorScale').value);
     params.seasonalityMode       = document.getElementById('seasonalityMode').value;
   }
-  if (model === 'random_forest') {
+  else if (model === 'random_forest') {
     params.n_estimators = parseInt(document.getElementById('rfEstimators').value, 10);
     const md = document.getElementById('rfMaxDepth').value;
     params.max_depth = md ? parseInt(md, 10) : null;
   }
-  if (model === 'xgboost') {
+  else if (model === 'xgboost') {
     params.n_estimators  = parseInt(document.getElementById('xgbEstimators').value, 10);
     params.max_depth     = parseInt(document.getElementById('xgbMaxDepth').value, 10);
     params.learning_rate = parseFloat(document.getElementById('xgbLR').value);
   }
-  if (model === 'neural_network') {
+  else if (model === 'neural_network') {
     params.hidden_layer_sizes = document.getElementById('nnHidden').value
-      .split(',').map(s => parseInt(s.trim(),10));
+      .split(',').map(s => parseInt(s.trim(), 10));
     params.alpha              = parseFloat(document.getElementById('nnAlpha').value);
     params.learning_rate_init = parseFloat(document.getElementById('nnLR').value);
   }
-  if (model === 'svr') {
+  else if (model === 'svr') {
     params.kernel = document.getElementById('svrKernel').value;
     params.C      = parseFloat(document.getElementById('svrC').value);
     params.gamma  = document.getElementById('svrGamma').value;
   }
+  else if (model === 'sarimax') {
+    const p = parseInt(document.getElementById('sarimaxP').value, 10);
+    const d = parseInt(document.getElementById('sarimaxD').value, 10);
+    const q = parseInt(document.getElementById('sarimaxQ').value, 10);
+    let   s = parseInt(document.getElementById('sarimaxS').value, 10);
+
+    // гарантия, что сезонность > 1
+    if (s < 2) s = 2;
+
+    params.order = [p, d, q];
+    params.seasonal_order = [
+      parseInt(document.getElementById('sarimaxSP').value, 10),
+      parseInt(document.getElementById('sarimaxSD').value, 10),
+      parseInt(document.getElementById('sarimaxSQ').value, 10),
+      s
+    ];
+  }
 
   try {
     const res = await fetch(`${API_URL}/api/model/train`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model, params })
     });
     if (!res.ok) throw new Error(await res.text());
     const js = await res.json();
 
-    // Отображаем метрики
+    // отрисовка метрик
     function fmt(v,d=3,pct=false){
-      if (v == null) return '-';
-      const n = pct? v*100 : v;
-      return n.toFixed(d) + (pct? '%' : '');
+      if (v==null) return '-';
+      const n = pct ? v*100 : v;
+      return n.toFixed(d)+(pct?'%':'');
     }
     document.getElementById('metricsContainer').innerHTML = `
       <table class="metrics-table">
@@ -161,12 +188,12 @@ document.getElementById('trainButton').onclick = async () => {
       </table>
     `;
 
-    // Показываем график Train+Test
+    // отобразить график train+test
     const imgTrain = document.getElementById('populationPlot');
     imgTrain.src = js.population_plot;
     imgTrain.style.display = 'block';
 
-    // Разрешаем кнопку прогноза
+    // разблокировать прогноз
     document.getElementById('forecastButton').disabled = false;
 
   } catch (e) {
@@ -174,36 +201,34 @@ document.getElementById('trainButton').onclick = async () => {
   }
 };
 
-// 4) Ползунок прогноза
+// 4) Ползунок горизонта
 const slider = document.getElementById('horizonSlider');
 slider.oninput = () => {
   document.getElementById('horizonValue').textContent = slider.value;
 };
 
-// 5) Прогноз на будущее
+// 5) Прогноз будущего
 document.getElementById('forecastButton').onclick = async () => {
   const model   = document.getElementById('modelSelect').value;
   const horizon = parseInt(document.getElementById('horizonSlider').value, 10);
 
   try {
     const res = await fetch(`${API_URL}/api/model/forecast`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model, horizon })
     });
     if (!res.ok) throw new Error(await res.text());
     const js = await res.json();
 
-    // Показываем график прогноза
+    // показать график прогноза
     const imgFuture = document.getElementById('futurePlot');
     imgFuture.src = js.image;
     imgFuture.style.display = 'block';
 
-    // Строим сравнительную таблицу
+    // построить таблицу сравнения
     let html = `<table class="metrics-table">
-      <thead><tr>
-        <th>Year</th><th>Model</th><th>Rosstat</th><th>Diff</th><th>Diff&nbsp;%</th>
-      </tr></thead><tbody>`;
+      <thead><tr><th>Year</th><th>Model</th><th>Rosstat</th><th>Diff</th><th>Diff&nbsp;%</th></tr></thead><tbody>`;
     js.table.forEach(r => {
       const dp = r.diff_pct == null ? '-' : r.diff_pct.toFixed(0) + '%';
       html += `<tr>
