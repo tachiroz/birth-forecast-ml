@@ -2,60 +2,54 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Прогнозирование населения</title>
+  <title>Прогноз населения</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
     <h1>Прогнозирование населения</h1>
 
-    <!-- Загрузка 4 CSV -->
-    <div class="form-group">
-      <label for="births">Births (.csv)</label>
-      <input type="file" id="births" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="deaths">Deaths (.csv)</label>
-      <input type="file" id="deaths" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="migration">Migration (.csv)</label>
-      <input type="file" id="migration" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="population">Population (.csv)</label>
-      <input type="file" id="population" accept=".csv">
-    </div>
-
-    <button type="button" id="uploadButton">Загрузить данные</button>
+    <!-- Загрузка данных -->
+    <div class="form-group"><label>Births (.csv)</label><input type="file" id="births" accept=".csv"></div>
+    <div class="form-group"><label>Deaths (.csv)</label><input type="file" id="deaths" accept=".csv"></div>
+    <div class="form-group"><label>Migration (.csv)</label><input type="file" id="migration" accept=".csv"></div>
+    <div class="form-group"><label>Population (.csv)</label><input type="file" id="population" accept=".csv"></div>
+    <button id="uploadButton">Загрузить данные</button>
     <hr>
 
     <!-- Выбор модели -->
     <div class="form-group">
-      <label for="modelSelect">Выберите модель/метод</label>
+      <label for="modelSelect">Модель</label>
       <select id="modelSelect">
-        <option value="">-- Выберите модель --</option>
-        <option value="linear_regression">Линейная регрессия</option>
-        <option value="decision_tree">Дерево решений</option>
-        <option value="random_forest">Случайный лес</option>
-        <option value="neural_network">Нейронная сеть</option>
+        <option value="">-- Выберите --</option>
         <option value="sarimax">SARIMAX</option>
       </select>
     </div>
-
     <div id="parameters" class="form-group"></div>
-
-    <button type="button" id="trainButton">Обучить</button>
+    <button id="trainButton">Обучить</button>
     <hr>
 
     <!-- Метрики -->
     <div id="metricsContainer"></div>
+    <hr>
 
-    <!-- Только один график -->
-    <div id="plotContainer" style="text-align:center; margin-top:20px;">
-      <img id="populationPlot" alt="Прогноз населения"
-           style="max-width:100%; display:none;">
+    <!-- Горизонт прогноза -->
+    <div class="form-group">
+      <label for="horizonSlider">
+        Горизонт прогноза: <span id="horizonValue">5</span> лет
+      </label>
+      <input type="range" id="horizonSlider" min="1" max="23" value="5">
     </div>
+    <button id="forecastButton" disabled>Прогнозировать</button>
+    <hr>
+
+    <!-- График -->
+    <div id="plotContainer" style="text-align:center;">
+      <img id="futurePlot" alt="Прогноз населения" style="max-width:100%; display:none;">
+    </div>
+
+    <!-- Таблица сравнения -->
+    <div id="compareTableContainer"></div>
   </div>
 
   <script src="scripts.js"></script>

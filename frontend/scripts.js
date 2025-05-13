@@ -2,98 +2,39 @@
 
 const API_URL = 'http://127.0.0.1:5000';
 
-// 1) Динамика параметров
-document.getElementById('modelSelect').addEventListener('change', () => {
-  const m = document.getElementById('modelSelect').value;
-  const p = document.getElementById('parameters');
-  p.innerHTML = '';
-
-  if (m === 'decision_tree') {
-    p.innerHTML = `
-      <label for="maxDepth">Максимальная глубина дерева</label>
-      <input type="number" id="maxDepth" placeholder="…">
-    `;
-  } else if (m === 'random_forest') {
-    p.innerHTML = `
-      <label for="numTrees">Кол-во деревьев</label>
-      <input type="number" id="numTrees" placeholder="…">
-      <label for="maxDepthRF">Макс. глубина</label>
-      <input type="number" id="maxDepthRF" placeholder="…">
-    `;
-  } else if (m === 'neural_network') {
-    p.innerHTML = `
-      <label for="layers">Слои</label>
-      <input type="number" id="layers" placeholder="…">
-      <label for="neurons">Нейроны</label>
-      <input type="number" id="neurons" placeholder="…">
-      <label for="learningRate">LR</label>
-      <input type="number" id="learningRate" step="0.0001" placeholder="…">
-    `;
-  } else if (m === 'linear_regression') {
-    p.innerHTML = `<label>Линейная регрессия без доп. параметров</label>`;
-  } else if (m === 'sarimax') {
-    p.innerHTML = `<label>SARIMAX подбирает параметры автоматически</label>`;
-  }
-});
-
-// 2) Загрузка всех 4 файлов
-async function uploadAll() {
+document.getElementById('uploadButton').onclick = async () => {
   const form = new FormData();
   ['births','deaths','migration','population'].forEach(id => {
     const inp = document.getElementById(id);
     if (inp.files.length) form.append(id, inp.files[0]);
   });
-  const missing = ['births','deaths','migration','population']
-    .filter(id => !form.has(id));
-  if (missing.length) {
-    return alert('Не выбраны: ' + missing.join(', '));
-  }
+  const missing = ['births','deaths','migration','population'].filter(id => !form.has(id));
+  if (missing.length) return alert('Не выбраны: '+missing.join(', '));
   try {
-    const res = await fetch(`${API_URL}/api/upload`, {
-      method: 'POST', body: form
-    });
+    const res = await fetch(`${API_URL}/api/upload`, {method:'POST', body:form});
     if (!res.ok) throw new Error(await res.text());
     const j = await res.json();
-    alert('Данные загружены:\n' + JSON.stringify(j.shapes, null,2));
+    alert('Данные загружены:\n'+JSON.stringify(j.shapes,null,2));
   } catch(e) {
-    alert('Ошибка загрузки: ' + e.message);
+    alert('Ошибка загрузки: '+e);
   }
-}
-document.getElementById('uploadButton')
-  .addEventListener('click', uploadAll);
+};
 
-// 3) Обучение и отображение метрик + единственного графика
-async function trainModel() {
+document.getElementById('trainButton').onclick = async () => {
   const model = document.getElementById('modelSelect').value;
   if (!model) return alert('Выберите модель');
-
-  // собираем параметры
-  const params = {};
-  if (model === 'decision_tree') {
-    params.maxDepth = +document.getElementById('maxDepth').value;
-  } else if (model === 'random_forest') {
-    params.numTrees = +document.getElementById('numTrees').value;
-    params.maxDepth = +document.getElementById('maxDepthRF').value;
-  } else if (model === 'neural_network') {
-    params.layers       = +document.getElementById('layers').value;
-    params.neurons      = +document.getElementById('neurons').value;
-    params.learningRate = +document.getElementById('learningRate').value;
-  }
-
   try {
     const res = await fetch(`${API_URL}/api/model/train`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model, params})
+      body: JSON.stringify({model, params:{}})
     });
     if (!res.ok) throw new Error(await res.text());
     const js = await res.json();
-
-    // форматирование метрик
-    function fmt(v,d=3,pct=false){
+    function fmt(v,d=2,pct=false){
       if (v==null) return '-';
       const n = pct? v*100 : v;
-      return n.toFixed(d) + (pct? '%' : '');
+      return n.toFixed(d)+(pct?'%':'');
     }
     document.getElementById('metricsContainer').innerHTML = `
       <table class="metrics-table">
@@ -106,15 +47,48 @@ async function trainModel() {
         </tbody>
       </table>
     `;
-
-    // единственный график population
-    const img = document.getElementById('populationPlot');
+    const img = document.getElementById('futurePlot');
     img.src = js.population_plot;
     img.style.display = 'block';
-
+    document.getElementById('forecastButton').disabled = false;
   } catch(e) {
-    alert('Ошибка при обучении: ' + e.message);
+    alert('Ошибка при обучении: '+e);
   }
-}
-document.getElementById('trainButton')
-  .addEventListener('click', trainModel);
+};
+
+const slider = document.getElementById('horizonSlider');
+slider.oninput = () => document.getElementById('horizonValue').textContent = slider.value;
+
+document.getElementById('forecastButton').onclick = async () => {
+  const horizon = +document.getElementById('horizonSlider').value;
+  try {
+    const res = await fetch(`${API_URL}/api/model/forecast`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model:'sarimax', horizon})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const js = await res.json();
+    const img = document.getElementById('futurePlot');
+    img.src = js.image;
+    img.style.display = 'block';
+    let html = `<table class="metrics-table">
+      <thead><tr>
+        <th>Year</th><th>Model</th><th>Rosstat</th><th>Diff</th><th>Diff&nbsp;%</th>
+      </tr></thead><tbody>`;
+    js.table.forEach(r => {
+      const dp = r.diff_pct==null?'-': r.diff_pct.toFixed(0)+'%';
+      html += `<tr>
+        <td>${r.year}</td>
+        <td>${r.model.toLocaleString()}</td>
+        <td>${r.rosstat?.toLocaleString()||'-'}</td>
+        <td>${r.diff?.toLocaleString()||'-'}</td>
+        <td>${dp}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('compareTableContainer').innerHTML = html;
+  } catch(e) {
+    alert('Ошибка прогноза: '+e);
+  }
+};
