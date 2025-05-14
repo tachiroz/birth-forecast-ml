@@ -2,78 +2,117 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Прогноз населения</title>
+  <title>Прогнозирование населения и рождаемости</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .tabs { display: flex; margin-bottom: 1em; }
+    .tabs button { flex: 1; padding: 0.5em; cursor: pointer; }
+    .tabs button.active { background: #007bff; color: white; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1>Прогнозирование населения</h1>
-
-    <!-- 1. Загрузка CSV -->
-    <div class="form-group">
-      <label for="births">Births (.csv)</label>
-      <input type="file" id="births" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="deaths">Deaths (.csv)</label>
-      <input type="file" id="deaths" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="migration">Migration (.csv)</label>
-      <input type="file" id="migration" accept=".csv">
-    </div>
-    <div class="form-group">
-      <label for="population">Population (.csv)</label>
-      <input type="file" id="population" accept=".csv">
-    </div>
-    <button id="uploadButton">Загрузить данные</button>
-    <hr>
-
-    <!-- 2. Выбор модели -->
-    <div class="form-group">
-      <label for="modelSelect">Модель</label>
-      <select id="modelSelect">
-        <option value="">-- Выберите --</option>
-        <option value="linear_regression">Linear Regression</option>
-        <option value="prophet">Prophet</option>
-        <option value="random_forest">Random Forest</option>
-        <option value="xgboost">XGBoost</option>
-        <option value="sarimax">SARIMAX</option>
-        <option value="neural_network">Neural Network</option>
-        <option value="svr">SVR</option>
-      </select>
+    <h1>Прогнозирование</h1>
+    <div class="tabs">
+      <button id="tab-pop" class="active">Прогноз населения</button>
+      <button id="tab-births">Прогноз рождаемости</button>
     </div>
 
-    <!-- 3. Параметры модели -->
-    <div id="parameters" class="form-group"></div>
-    <button id="trainButton">Обучить</button>
-    <hr>
+    <!-- Панель 1: Население -->
+    <div id="panel-pop" class="panel active">
+      <!-- Загрузка CSV (общая) -->
+      <div class="form-group">
+        <label>Births (.csv)</label><input type="file" id="births" accept=".csv">
+      </div>
+      <div class="form-group">
+        <label>Deaths (.csv)</label><input type="file" id="deaths" accept=".csv">
+      </div>
+      <div class="form-group">
+        <label>Migration (.csv)</label><input type="file" id="migration" accept=".csv">
+      </div>
+      <div class="form-group">
+        <label>Population (.csv)</label><input type="file" id="population" accept=".csv">
+      </div>
+      <button id="uploadButton">Загрузить данные</button>
+      <hr>
 
-    <!-- 4. Метрики -->
-    <div id="metricsContainer"></div>
-    <hr>
+      <!-- Выбор модели -->
+      <div class="form-group">
+        <label>Модель</label>
+        <select id="modelSelectPop">
+          <option value="">-- Выберите --</option>
+          <option value="linear_regression">Linear Regression</option>
+          <option value="prophet">Prophet</option>
+          <option value="random_forest">Random Forest</option>
+          <option value="xgboost">XGBoost</option>
+          <option value="neural_network">Neural Network</option>
+          <option value="svr">SVR</option>
+          <option value="sarimax">SARIMAX</option>
+        </select>
+      </div>
+      <div id="parametersPop" class="form-group"></div>
+      <button id="trainButtonPop">Обучить</button>
+      <hr>
 
-    <!-- 5. Горизонт прогноза -->
-    <div class="form-group">
-      <label for="horizonSlider">
-        Горизонт прогноза: <span id="horizonValue">5</span> лет
-      </label>
-      <input type="range" id="horizonSlider" min="1" max="23" value="5">
+      <!-- Метрики и график -->
+      <div id="metricsContainerPop"></div>
+      <img id="populationPlot" alt="Train/Test Population" style="max-width:100%; display:none; margin:1em 0;">
+
+      <!-- Прогноз -->
+      <div class="form-group">
+        <label>Горизонт (лет): <span id="horizonValuePop">5</span></label>
+        <input type="range" id="horizonSliderPop" min="1" max="23" value="5">
+      </div>
+      <button id="forecastButtonPop" disabled>Прогнозировать</button>
+      <hr>
+
+      <!-- Результаты прогноза -->
+      <img id="futurePlotPop" alt="Future Population" style="max-width:100%; display:none; margin:1em 0;">
+      <div id="compareTableContainerPop"></div>
     </div>
-    <button id="forecastButton" disabled>Прогнозировать</button>
-    <hr>
 
-    <!-- 6. Графики -->
-    <div id="plotContainer" style="text-align:center;">
-      <!-- train+test -->
-      <img id="populationPlot" alt="Train/Test Population" style="max-width:100%; display:none; margin-bottom:20px;">
-      <!-- будущее -->
-      <img id="futurePlot"     alt="Future Forecast"    style="max-width:100%; display:none;">
+    <!-- Панель 2: Рождаемость -->
+    <div id="panel-births" class="panel">
+      <!-- (Загрузка CSV та же!) -->
+      <p><em>CSV уже загружены во вкладке «Население».</em></p>
+      <hr>
+
+      <!-- Выбор модели -->
+      <div class="form-group">
+        <label>Модель</label>
+        <select id="modelSelectBirths">
+          <option value="">-- Выберите --</option>
+          <option value="linear_regression">Linear Regression</option>
+          <option value="prophet">Prophet</option>
+          <option value="random_forest">Random Forest</option>
+          <option value="xgboost">XGBoost</option>
+          <option value="neural_network">Neural Network</option>
+          <option value="svr">SVR</option>
+          <option value="sarimax">SARIMAX</option>
+        </select>
+      </div>
+      <div id="parametersBirths" class="form-group"></div>
+      <button id="trainButtonBirths">Обучить</button>
+      <hr>
+
+      <!-- Метрики и график -->
+      <div id="metricsContainerBirths"></div>
+      <img id="birthsPlot" alt="Train/Test Births" style="max-width:100%; display:none; margin:1em 0;">
+
+      <!-- Прогноз -->
+      <div class="form-group">
+        <label>Горизонт (лет): <span id="horizonValueBirths">5</span></label>
+        <input type="range" id="horizonSliderBirths" min="1" max="23" value="5">
+      </div>
+      <button id="forecastButtonBirths" disabled>Прогнозировать</button>
+      <hr>
+
+      <!-- Результаты прогноза -->
+      <img id="futurePlotBirths" alt="Future Births" style="max-width:100%; display:none; margin:1em 0;">
+      <div id="compareTableContainerBirths"></div>
     </div>
-    <hr>
-
-    <!-- 7. Таблица сравнения -->
-    <div id="compareTableContainer"></div>
   </div>
 
   <script src="scripts.js"></script>
