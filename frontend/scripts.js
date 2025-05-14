@@ -1,8 +1,11 @@
-// scripts.js
+// frontend/scripts.js
 
 const API_URL = 'http://127.0.0.1:5000';
 
-// === Табы ===
+// храним последние параметры
+const lastParams = { Pop: null, Births: null };
+
+// === переключение вкладок ===
 document.getElementById('tab-pop').onclick = () => {
   document.getElementById('tab-pop').classList.add('active');
   document.getElementById('tab-births').classList.remove('active');
@@ -16,60 +19,56 @@ document.getElementById('tab-births').onclick = () => {
   document.getElementById('panel-pop').classList.remove('active');
 };
 
-// === Загрузка CSV (общая) ===
+// === загрузка CSV ===
 document.getElementById('uploadButton').onclick = async () => {
   const form = new FormData();
   ['births','deaths','migration','population'].forEach(id => {
     const inp = document.getElementById(id);
     if (inp.files.length) form.append(id, inp.files[0]);
   });
-  const missing = ['births','deaths','migration','population'].filter(id => !form.has(id));
+  const missing = ['births','deaths','migration','population']
+    .filter(id => !form.has(id));
   if (missing.length) {
-    return alert('Не выбраны: ' + missing.join(', '));
+    alert('Не выбраны: ' + missing.join(', '));
+    return;
   }
   try {
-    const res = await fetch(`${API_URL}/api/upload`, { method:'POST', body: form });
+    const res = await fetch(`${API_URL}/api/upload`, {
+      method:'POST', body: form
+    });
     if (!res.ok) throw new Error(await res.text());
     const js = await res.json();
-    alert('Данные загружены:\n' + JSON.stringify(js.shapes, null,2));
-  } catch (e) {
-    alert('Ошибка загрузки: ' + e.message);
+    alert('Данные загружены:\n' + JSON.stringify(js.shapes,null,2));
+  } catch(e) {
+    alert('Ошибка загрузки: '+e.message);
   }
 };
 
-// === Параметры моделей ===
+// === отрисовка формы параметров ===
 function initParams(tab) {
   const sel = document.getElementById('modelSelect'+tab);
   const dst = document.getElementById('parameters'+tab);
   sel.onchange = () => {
-    const m = sel.value;
-    dst.innerHTML = '';
-    switch (m) {
+    const m = sel.value; dst.innerHTML = '';
+    switch(m) {
       case 'linear_regression':
-        dst.innerHTML = `<em>Нет доп. параметров.</em>`;
-        break;
-
+        dst.innerHTML = `<em>Нет доп. параметров.</em>`; break;
       case 'prophet':
         dst.innerHTML = `
           <label>Changepoint Prior Scale</label>
           <input type="number" id="changepointPriorScale${tab}" step="0.01" value="0.05">
           <label>Seasonality Mode</label>
           <select id="seasonalityMode${tab}">
-            <option>additive</option>
-            <option>multiplicative</option>
-          </select>
-        `;
+            <option>additive</option><option>multiplicative</option>
+          </select>`;
         break;
-
       case 'random_forest':
         dst.innerHTML = `
           <label>n_estimators</label>
           <input type="number" id="rfEstimators${tab}" value="100">
           <label>max_depth</label>
-          <input type="number" id="rfMaxDepth${tab}" placeholder="None">
-        `;
+          <input type="number" id="rfMaxDepth${tab}" placeholder="None">`;
         break;
-
       case 'xgboost':
         dst.innerHTML = `
           <label>n_estimators</label>
@@ -77,21 +76,17 @@ function initParams(tab) {
           <label>max_depth</label>
           <input type="number" id="xgbMaxDepth${tab}" value="6">
           <label>learning_rate</label>
-          <input type="number" step="0.01" id="xgbLR${tab}" value="0.3">
-        `;
+          <input type="number" step="0.01" id="xgbLR${tab}" value="0.3">`;
         break;
-
       case 'neural_network':
         dst.innerHTML = `
-          <label>hidden_layer_sizes (напр. "100,50")</label>
+          <label>hidden_layer_sizes</label>
           <input type="text" id="nnHidden${tab}" value="100">
           <label>alpha</label>
           <input type="number" step="0.0001" id="nnAlpha${tab}" value="0.0001">
           <label>learning_rate_init</label>
-          <input type="number" step="0.0001" id="nnLR${tab}" value="0.001">
-        `;
+          <input type="number" step="0.0001" id="nnLR${tab}" value="0.001">`;
         break;
-
       case 'svr':
         dst.innerHTML = `
           <label>kernel</label>
@@ -101,10 +96,8 @@ function initParams(tab) {
           <label>C</label>
           <input type="number" step="0.1" id="svrC${tab}" value="1.0">
           <label>gamma</label>
-          <input type="text" id="svrGamma${tab}" value="scale">
-        `;
+          <input type="text" id="svrGamma${tab}" value="scale">`;
         break;
-
       case 'sarimax':
         dst.innerHTML = `
           <label>order (p,d,q)</label><br>
@@ -115,53 +108,48 @@ function initParams(tab) {
           <input type="number" id="sarimaxSP${tab}" value="0" min="0">,
           <input type="number" id="sarimaxSD${tab}" value="0" min="0">,
           <input type="number" id="sarimaxSQ${tab}" value="0" min="0">,
-          <input type="number" id="sarimaxS${tab}"  value="2" min="2">
-        `;
+          <input type="number" id="sarimaxS${tab}"  value="2" min="2">`;
         break;
     }
   };
 }
 
-// === Обучение модели ===
+// === инициализация TRAIN ===
 function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) {
   initParams(tab);
   document.getElementById(trainBtnId).onclick = async () => {
     const model = document.getElementById('modelSelect'+tab).value;
-    if (!model) {
-      alert('Сначала выберите модель');
-      return;
-    }
-
-    // --- сбор параметров ---
+    if (!model) return alert('Выберите модель');
+    // собрать params
     const params = {};
-    if (model === 'prophet') {
+    if (model==='prophet') {
       params.changepointPriorScale = parseFloat(
         document.getElementById(`changepointPriorScale${tab}`).value
       );
       params.seasonalityMode = document.getElementById(`seasonalityMode${tab}`).value;
     }
-    else if (model === 'random_forest') {
+    else if (model==='random_forest') {
       params.n_estimators = parseInt(
-        document.getElementById(`rfEstimators${tab}`).value, 10
+        document.getElementById(`rfEstimators${tab}`).value,10
       );
       const md = document.getElementById(`rfMaxDepth${tab}`).value;
-      params.max_depth = md ? parseInt(md,10) : null;
+      params.max_depth = md? parseInt(md,10): null;
     }
-    else if (model === 'xgboost') {
+    else if (model==='xgboost') {
       params.n_estimators  = parseInt(
-        document.getElementById(`xgbEstimators${tab}`).value, 10
+        document.getElementById(`xgbEstimators${tab}`).value,10
       );
       params.max_depth     = parseInt(
-        document.getElementById(`xgbMaxDepth${tab}`).value, 10
+        document.getElementById(`xgbMaxDepth${tab}`).value,10
       );
       params.learning_rate = parseFloat(
         document.getElementById(`xgbLR${tab}`).value
       );
     }
-    else if (model === 'neural_network') {
+    else if (model==='neural_network') {
       params.hidden_layer_sizes = 
         document.getElementById(`nnHidden${tab}`).value
-          .split(',').map(s=>parseInt(s.trim(),10));
+          .split(',').map(s=>+s.trim());
       params.alpha              = parseFloat(
         document.getElementById(`nnAlpha${tab}`).value
       );
@@ -169,31 +157,31 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
         document.getElementById(`nnLR${tab}`).value
       );
     }
-    else if (model === 'svr') {
+    else if (model==='svr') {
       params.kernel = document.getElementById(`svrKernel${tab}`).value;
       params.C      = parseFloat(
         document.getElementById(`svrC${tab}`).value
       );
       params.gamma  = document.getElementById(`svrGamma${tab}`).value;
     }
-    else if (model === 'sarimax') {
+    else if (model==='sarimax') {
       let s = parseInt(document.getElementById(`sarimaxS${tab}`).value,10);
-      if (s < 2) s = 2;
+      if (s<2) s=2;
       params.order = [
-        parseInt(document.getElementById(`sarimaxP${tab}`).value,10),
-        parseInt(document.getElementById(`sarimaxD${tab}`).value,10),
-        parseInt(document.getElementById(`sarimaxQ${tab}`).value,10)
+        +document.getElementById(`sarimaxP${tab}`).value,
+        +document.getElementById(`sarimaxD${tab}`).value,
+        +document.getElementById(`sarimaxQ${tab}`).value
       ];
       params.seasonal_order = [
-        parseInt(document.getElementById(`sarimaxSP${tab}`).value,10),
-        parseInt(document.getElementById(`sarimaxSD${tab}`).value,10),
-        parseInt(document.getElementById(`sarimaxSQ${tab}`).value,10),
+        +document.getElementById(`sarimaxSP${tab}`).value,
+        +document.getElementById(`sarimaxSD${tab}`).value,
+        +document.getElementById(`sarimaxSQ${tab}`).value,
         s
       ];
     }
-    // (linear_regression — без параметров)
+    // сохраняем их
+    lastParams[tab] = params;
 
-    // --- запрос на тренировку ---
     try {
       const res = await fetch(`${API_URL}/${endpoint}`, {
         method:'POST',
@@ -203,10 +191,10 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
       if (!res.ok) throw new Error(await res.text());
       const js = await res.json();
 
-      // --- вывод метрик ---
+      // метрики
       function fmt(v,d=3,pct=false){
         if (v==null) return '-';
-        const n = pct ? v*100 : v;
+        const n = pct? v*100 : v;
         return n.toFixed(d) + (pct? '%' : '');
       }
       document.getElementById(metricsId).innerHTML = `
@@ -218,22 +206,21 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
             <tr><td>MAPE</td><td>${fmt(js.metrics.mape,2,true)}</td></tr>
             <tr><td>R²</td><td>${fmt(js.metrics.r2)}</td></tr>
           </tbody>
-        </table>
-      `;
+        </table>`;
 
-      // --- показать график train+test ---
+      // график train+test
       const img = document.getElementById(plotId);
       img.src = js.plot;
       img.style.display = 'block';
 
       document.getElementById(forecastBtnId).disabled = false;
-    } catch (e) {
-      alert('Ошибка при обучении: ' + e.message);
+    } catch(e) {
+      alert('Ошибка при обучении: '+e.message);
     }
   };
 }
 
-// === Прогнозирование ===
+// === инициализация FORECAST ===
 function initForecast(
   tab, endpoint,
   futurePlotId, tableId,
@@ -241,17 +228,19 @@ function initForecast(
   forecastBtnId
 ) {
   const slider = document.getElementById(sliderId);
-  slider.oninput = () => {
+  slider.oninput = ()=> {
     document.getElementById(sliderValId).textContent = slider.value;
   };
   document.getElementById(forecastBtnId).onclick = async () => {
     const model   = document.getElementById('modelSelect'+tab).value;
-    const horizon = parseInt(document.getElementById(sliderId).value,10);
+    const horizon = +document.getElementById(sliderId).value;
+    const params  = lastParams[tab] || {};  // берём сохранённые
+
     try {
       const res = await fetch(`${API_URL}/${endpoint}`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, horizon })
+        body: JSON.stringify({ model, params, horizon })
       });
       if (!res.ok) throw new Error(await res.text());
       const js = await res.json();
@@ -264,7 +253,7 @@ function initForecast(
       // таблица сравнения
       let html = `<table class="metrics-table">
         <thead><tr><th>Year</th><th>Model</th><th>Rosstat</th><th>Diff</th><th>Diff %</th></tr></thead><tbody>`;
-      js.table.forEach(r => {
+      js.table.forEach(r=>{
         const dp = r.diff_pct==null? '-' : r.diff_pct.toFixed(0)+'%';
         html += `<tr>
           <td>${r.year}</td>
@@ -276,18 +265,17 @@ function initForecast(
       });
       html += '</tbody></table>';
       document.getElementById(tableId).innerHTML = html;
-
-    } catch (e) {
-      alert('Ошибка прогноза: ' + e.message);
+    } catch(e) {
+      alert('Ошибка прогноза: '+e.message);
     }
   };
 }
 
-// === Инициализация двух панелей ===
+// === запуск для обеих панелей ===
 initTrain(
   'Pop',               // суффикс
   'api/model/train',   // endpoint
-  'populationPlot',    // train-plot img id
+  'populationPlot',    // img train+test
   'metricsContainerPop',
   'trainButtonPop',
   'forecastButtonPop'
