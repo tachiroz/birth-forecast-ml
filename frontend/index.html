@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="styles.css">
   <style>
     .tabs { display: flex; margin-bottom: 1em; }
-    .tabs button { flex: 1; padding: 0.5em; cursor: pointer; }
+    .tabs button { flex: 1; padding: 0.5em; cursor: pointer; border: 1px solid #007bff; background: white; }
     .tabs button.active { background: #007bff; color: white; }
     .panel { display: none; }
     .panel.active { display: block; }
@@ -16,26 +16,30 @@
   <div class="container">
     <h1>Прогнозирование</h1>
     <div class="tabs">
-      <button id="tab-pop" class="active">Прогноз населения</button>
-      <button id="tab-births">Прогноз рождаемости</button>
+      <button type="button" id="tab-pop" class="active">Прогноз населения</button>
+      <button type="button" id="tab-births">Прогноз рождаемости</button>
     </div>
 
     <!-- Панель 1: Население -->
     <div id="panel-pop" class="panel active">
-      <!-- Загрузка CSV (общая) -->
+      <!-- Загрузка CSV -->
       <div class="form-group">
-        <label>Births (.csv)</label><input type="file" id="births" accept=".csv">
+        <label>Births (.csv)</label>
+        <input type="file" id="births" accept=".csv">
       </div>
       <div class="form-group">
-        <label>Deaths (.csv)</label><input type="file" id="deaths" accept=".csv">
+        <label>Deaths (.csv)</label>
+        <input type="file" id="deaths" accept=".csv">
       </div>
       <div class="form-group">
-        <label>Migration (.csv)</label><input type="file" id="migration" accept=".csv">
+        <label>Migration (.csv)</label>
+        <input type="file" id="migration" accept=".csv">
       </div>
       <div class="form-group">
-        <label>Population (.csv)</label><input type="file" id="population" accept=".csv">
+        <label>Population (.csv)</label>
+        <input type="file" id="population" accept=".csv">
       </div>
-      <button id="uploadButton">Загрузить данные</button>
+      <button type="button" id="uploadButton">Загрузить данные</button>
       <hr>
 
       <!-- Выбор модели -->
@@ -53,7 +57,7 @@
         </select>
       </div>
       <div id="parametersPop" class="form-group"></div>
-      <button id="trainButtonPop">Обучить</button>
+      <button type="button" id="trainButtonPop">Обучить</button>
       <hr>
 
       <!-- Метрики и график -->
@@ -65,7 +69,7 @@
         <label>Горизонт (лет): <span id="horizonValuePop">5</span></label>
         <input type="range" id="horizonSliderPop" min="1" max="23" value="5">
       </div>
-      <button id="forecastButtonPop" disabled>Прогнозировать</button>
+      <button type="button" id="forecastButtonPop" disabled>Прогнозировать</button>
       <hr>
 
       <!-- Результаты прогноза -->
@@ -75,7 +79,6 @@
 
     <!-- Панель 2: Рождаемость -->
     <div id="panel-births" class="panel">
-      <!-- (Загрузка CSV та же!) -->
       <p><em>CSV уже загружены во вкладке «Население».</em></p>
       <hr>
 
@@ -94,7 +97,7 @@
         </select>
       </div>
       <div id="parametersBirths" class="form-group"></div>
-      <button id="trainButtonBirths">Обучить</button>
+      <button type="button" id="trainButtonBirths">Обучить</button>
       <hr>
 
       <!-- Метрики и график -->
@@ -106,7 +109,7 @@
         <label>Горизонт (лет): <span id="horizonValueBirths">5</span></label>
         <input type="range" id="horizonSliderBirths" min="1" max="23" value="5">
       </div>
-      <button id="forecastButtonBirths" disabled>Прогнозировать</button>
+      <button type="button" id="forecastButtonBirths" disabled>Прогнозировать</button>
       <hr>
 
       <!-- Результаты прогноза -->

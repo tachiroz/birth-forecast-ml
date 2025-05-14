@@ -2,7 +2,7 @@
 
 const API_URL = 'http://127.0.0.1:5000';
 
-// храним последние параметры
+// храним последние параметры для каждой вкладки
 const lastParams = { Pop: null, Births: null };
 
 // === переключение вкладок ===
@@ -29,18 +29,16 @@ document.getElementById('uploadButton').onclick = async () => {
   const missing = ['births','deaths','migration','population']
     .filter(id => !form.has(id));
   if (missing.length) {
-    alert('Не выбраны: ' + missing.join(', '));
-    return;
+    return alert('Не выбраны: ' + missing.join(', '));
   }
   try {
     const res = await fetch(`${API_URL}/api/upload`, {
       method:'POST', body: form
     });
     if (!res.ok) throw new Error(await res.text());
-    const js = await res.json();
-    alert('Данные загружены:\n' + JSON.stringify(js.shapes,null,2));
+    alert('Данные загружены успешно');
   } catch(e) {
-    alert('Ошибка загрузки: '+e.message);
+    alert('Ошибка загрузки: ' + e.message);
   }
 };
 
@@ -49,10 +47,12 @@ function initParams(tab) {
   const sel = document.getElementById('modelSelect'+tab);
   const dst = document.getElementById('parameters'+tab);
   sel.onchange = () => {
-    const m = sel.value; dst.innerHTML = '';
+    const m = sel.value;
+    dst.innerHTML = '';
     switch(m) {
       case 'linear_regression':
-        dst.innerHTML = `<em>Нет доп. параметров.</em>`; break;
+        dst.innerHTML = `<em>Нет доп. параметров.</em>`;
+        break;
       case 'prophet':
         dst.innerHTML = `
           <label>Changepoint Prior Scale</label>
@@ -90,9 +90,7 @@ function initParams(tab) {
       case 'svr':
         dst.innerHTML = `
           <label>kernel</label>
-          <select id="svrKernel${tab}">
-            <option>rbf</option><option>linear</option><option>poly</option>
-          </select>
+          <select id="svrKernel${tab}"><option>rbf</option><option>linear</option><option>poly</option></select>
           <label>C</label>
           <input type="number" step="0.1" id="svrC${tab}" value="1.0">
           <label>gamma</label>
@@ -147,7 +145,7 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
       );
     }
     else if (model==='neural_network') {
-      params.hidden_layer_sizes = 
+      params.hidden_layer_sizes =
         document.getElementById(`nnHidden${tab}`).value
           .split(',').map(s=>+s.trim());
       params.alpha              = parseFloat(
@@ -179,8 +177,8 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
         s
       ];
     }
-    // сохраняем их
-    lastParams[tab] = params;
+
+    lastParams[tab] = params;  // сохраняем
 
     try {
       const res = await fetch(`${API_URL}/${endpoint}`, {
@@ -234,7 +232,7 @@ function initForecast(
   document.getElementById(forecastBtnId).onclick = async () => {
     const model   = document.getElementById('modelSelect'+tab).value;
     const horizon = +document.getElementById(sliderId).value;
-    const params  = lastParams[tab] || {};  // берём сохранённые
+    const params  = lastParams[tab] || {};
 
     try {
       const res = await fetch(`${API_URL}/${endpoint}`, {
@@ -273,9 +271,9 @@ function initForecast(
 
 // === запуск для обеих панелей ===
 initTrain(
-  'Pop',               // суффикс
-  'api/model/train',   // endpoint
-  'populationPlot',    // img train+test
+  'Pop',
+  'api/model/train',
+  'populationPlot',
   'metricsContainerPop',
   'trainButtonPop',
   'forecastButtonPop'
