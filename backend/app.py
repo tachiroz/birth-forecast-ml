@@ -277,7 +277,7 @@ def forecast_population():
     plt.plot(years, y_pred,      '--o', color='tab:blue', label='Прогноз')
     plt.plot(years,
              [ROSSTAT_POP.get(y,np.nan) for y in years],
-             '--o', color='tab:red',  label='Rosstat')
+             '--o', color='tab:red',  label='Росстат')
     plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Population'); plt.legend(); plt.grid(True)
     buf = BytesIO()
@@ -420,7 +420,7 @@ def forecast_births():
     plt.plot(years, y_pred, '--o', color='tab:blue', label='Прогноз')
     plt.plot(years,
              [ROSSTAT_BIRTHS.get(y,np.nan) for y in years],
-             '--o', color='tab:red',  label='Rosstat')
+             '--o', color='tab:red',  label='Росстат')
     plt.axvline(2021.5, linestyle='--', color='gray')
     plt.xlabel('Year'); plt.ylabel('Births'); plt.legend(); plt.grid(True)
     buf = BytesIO()
