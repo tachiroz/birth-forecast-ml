@@ -249,7 +249,9 @@ function initForecast(
       let html = `<table class="metrics-table">
         <thead><tr><th>Year</th><th>Model</th><th>Rosstat</th><th>Diff</th><th>Diff %</th></tr></thead><tbody>`;
       js.table.forEach(r=>{
-        const dp = r.diff_pct==null? '-' : r.diff_pct.toFixed(0)+'%';
+        const dp = r.diff_pct == null
+          ? '-'
+          : Math.abs(r.diff_pct).toFixed(2) + '%';
         html += `<tr>
           <td>${r.year}</td>
           <td>${r.model.toLocaleString()}</td>
