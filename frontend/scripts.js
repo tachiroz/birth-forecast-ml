@@ -52,54 +52,54 @@ function initParams(tab) {
         break;
       case 'prophet':
         dst.innerHTML = `
-          <label>Changepoint Prior Scale</label>
+          <label>Масштаб точек перегиба (Changepoint Prior Scale)</label>
           <input type="number" id="changepointPriorScale${tab}" step="0.01" value="0.05">
-          <label>Seasonality Mode</label>
+          <label>Режим сезонности (Seasonality Mode)</label>
           <select id="seasonalityMode${tab}">
             <option>additive</option><option>multiplicative</option>
           </select>`;
         break;
       case 'random_forest':
         dst.innerHTML = `
-          <label>n_estimators</label>
+          <label>Количество деревьев (n_estimators)</label>
           <input type="number" id="rfEstimators${tab}" value="100">
-          <label>max_depth</label>
+          <label>Максимальная глубина (max_depth)</label>
           <input type="number" id="rfMaxDepth${tab}" placeholder="None">`;
         break;
       case 'xgboost':
         dst.innerHTML = `
-          <label>n_estimators</label>
+          <label>Количество деревьев (n_estimators)</label>
           <input type="number" id="xgbEstimators${tab}" value="100">
-          <label>max_depth</label>
+          <label>Максимальная глубина (max_depth)</label>
           <input type="number" id="xgbMaxDepth${tab}" value="6">
-          <label>learning_rate</label>
+          <label>Скорость обучения (learning_rate)</label>
           <input type="number" step="0.01" id="xgbLR${tab}" value="0.3">`;
         break;
       case 'neural_network':
         dst.innerHTML = `
-          <label>hidden_layer_sizes</label>
+          <label>Размер скрытых слоев (hidden_layer_sizes)</label>
           <input type="text" id="nnHidden${tab}" value="100">
-          <label>alpha</label>
+          <label>L2-регуляризация (alpha)</label>
           <input type="number" step="0.0001" id="nnAlpha${tab}" value="0.0001">
-          <label>learning_rate_init</label>
+          <label>Скорость обучения (learning_rate_init)</label>
           <input type="number" step="0.0001" id="nnLR${tab}" value="0.001">`;
         break;
       case 'svr':
         dst.innerHTML = `
-          <label>kernel</label>
+          <label>Ядро (kernel)</label>
           <select id="svrKernel${tab}"><option>rbf</option><option>linear</option><option>poly</option></select>
-          <label>C</label>
+          <label>Регуляризация С (C)</label>
           <input type="number" step="0.1" id="svrC${tab}" value="1.0">
-          <label>gamma</label>
+          <label>Параметр гамма (gamma)</label>
           <input type="text" id="svrGamma${tab}" value="scale">`;
         break;
       case 'sarimax':
         dst.innerHTML = `
-          <label>order (p,d,q)</label><br>
+          <label>Порядок ARIMA (p,d,q) (order)</label><br>
           <input type="number" id="sarimaxP${tab}" value="1" min="0">,
           <input type="number" id="sarimaxD${tab}" value="1" min="0">,
           <input type="number" id="sarimaxQ${tab}" value="1" min="0"><br>
-          <label>seasonal_order (P,D,Q,s)</label><br>
+          <label>Сезонный порядок (P,D,Q,s) (seasonal_order)</label><br>
           <input type="number" id="sarimaxSP${tab}" value="0" min="0">,
           <input type="number" id="sarimaxSD${tab}" value="0" min="0">,
           <input type="number" id="sarimaxSQ${tab}" value="0" min="0">,
