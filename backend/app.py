@@ -24,7 +24,7 @@ from sklearn.metrics import (
     r2_score
 )
 
-# Paths
+# Пути с хранением файлов
 BASE_DIR     = os.path.dirname(__file__)
 DATA_FOLDER  = os.path.join(BASE_DIR, 'data')
 MODEL_FOLDER = os.path.join(BASE_DIR, 'models')
@@ -41,7 +41,7 @@ CORS(app)
 
 data_store = {}
 
-# Rosstat forecasts
+# Прогнозы Росстата
 ROSSTAT_POP = {
     2024:1435064,2025:1426827,2026:1418382,2027:1409894,2028:1401407,
     2029:1393126,2030:1385054,2031:1377166,2032:1369463,2033:1361966,
@@ -144,7 +144,7 @@ def upload_files():
     return jsonify({'status':'success','shapes':shapes})
 
 
-# TRAIN population
+# обучение по населению
 @app.route('/api/model/train', methods=['POST'])
 def train_population():
     payload    = request.get_json(force=True)
@@ -195,7 +195,7 @@ def train_population():
     mape = None if np.isnan(mape) else mape
     r2   = None if np.isnan(r2) else r2
 
-    # plot train/test
+    # графика обучения и теста
     plt.figure(figsize=(8,4))
     plt.plot(df['Year'], df['population'], 'k-', label='История')
     plt.plot(te['Year'], y_pred, '--o', color='tab:blue', label='Прогноз')
@@ -208,7 +208,7 @@ def train_population():
     buf.seek(0)
     plot_b64 = base64.b64encode(buf.read()).decode('utf-8')
 
-    # save model
+    # сохранение модели
     with open(os.path.join(MODEL_FOLDER,f'model_population_{model_name}.pkl'),'wb') as f:
         pickle.dump(m, f)
 
@@ -219,7 +219,7 @@ def train_population():
     })
 
 
-# FORECAST population
+# прогноз населения
 @app.route('/api/model/forecast', methods=['POST'])
 def forecast_population():
     payload    = request.get_json(force=True)
@@ -260,7 +260,6 @@ def forecast_population():
         y_pred = m.predict(Xf)
 
     y_pred = list(y_pred)
-    # anchor to end-of-history
     actual_last = df.loc[df['Year']==start_year-1,'population'].iloc[0]
     shift = actual_last - y_pred[0]
     y_pred = [p + shift for p in y_pred]
@@ -272,7 +271,7 @@ def forecast_population():
         pct  = None if (ros is None or ros==0) else diff/ros*100
         table.append({'year':yr,'model':p,'rosstat':ros,'diff':diff,'diff_pct':pct})
 
-    # plot future
+    # график прогноза на будущее
     plt.figure(figsize=(10,5))
     plt.plot(df['Year'], df['population'], 'k-', label='История')
     plt.plot(years, y_pred,      '--o', color='tab:blue', label='Прогноз')
@@ -291,7 +290,7 @@ def forecast_population():
     return jsonify({'image':f'data:image/png;base64,{img_b64}','table':table})
 
 
-# TRAIN births
+# обучение по рождению
 @app.route('/api/model/train_births', methods=['POST'])
 def train_births():
     payload    = request.get_json(force=True)
@@ -342,7 +341,6 @@ def train_births():
     mape = None if np.isnan(mape) else mape
     r2   = None if np.isnan(r2) else r2
 
-    # plot train/test
     plt.figure(figsize=(8,4))
     plt.plot(df['Year'], df['births'], 'k-', label='История')
     plt.plot(te['Year'], y_pred, '--o', color='tab:blue', label='Прогноз')
@@ -354,8 +352,7 @@ def train_births():
     plt.close()
     buf.seek(0)
     plot_b64 = base64.b64encode(buf.read()).decode('utf-8')
-
-    # save model
+    
     with open(os.path.join(MODEL_FOLDER,f'model_births_{model_name}.pkl'),'wb') as f:
         pickle.dump(m, f)
 
@@ -366,7 +363,7 @@ def train_births():
     })
 
 
-# FORECAST births
+# прогнозирование по рождениям
 @app.route('/api/model/forecast_births', methods=['POST'])
 def forecast_births():
     payload    = request.get_json(force=True)

@@ -1,11 +1,8 @@
-// frontend/scripts.js
-
 const API_URL = 'http://127.0.0.1:5000';
 
-// храним последние параметры для каждой вкладки
 const lastParams = { Pop: null, Births: null };
 
-// === переключение вкладок ===
+// переключение вкладок
 document.getElementById('tab-pop').onclick = () => {
   document.getElementById('tab-pop').classList.add('active');
   document.getElementById('tab-births').classList.remove('active');
@@ -19,7 +16,7 @@ document.getElementById('tab-births').onclick = () => {
   document.getElementById('panel-pop').classList.remove('active');
 };
 
-// === загрузка CSV ===
+// загрузка CSV
 document.getElementById('uploadButton').onclick = async () => {
   const form = new FormData();
   ['births','deaths','migration','population'].forEach(id => {
@@ -42,7 +39,7 @@ document.getElementById('uploadButton').onclick = async () => {
   }
 };
 
-// === отрисовка формы параметров ===
+// отрисовка формы параметров
 function initParams(tab) {
   const sel = document.getElementById('modelSelect'+tab);
   const dst = document.getElementById('parameters'+tab);
@@ -112,13 +109,13 @@ function initParams(tab) {
   };
 }
 
-// === инициализация TRAIN ===
+// инициализация обучения
 function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) {
   initParams(tab);
   document.getElementById(trainBtnId).onclick = async () => {
     const model = document.getElementById('modelSelect'+tab).value;
     if (!model) return alert('Выберите модель');
-    // собрать params
+    // сбор параметров
     const params = {};
     if (model==='prophet') {
       params.changepointPriorScale = parseFloat(
@@ -206,7 +203,7 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
           </tbody>
         </table>`;
 
-      // график train+test
+      // график обучения и теста
       const img = document.getElementById(plotId);
       img.src = js.plot;
       img.style.display = 'block';
@@ -218,7 +215,7 @@ function initTrain(tab, endpoint, plotId, metricsId, trainBtnId, forecastBtnId) 
   };
 }
 
-// === инициализация FORECAST ===
+// инициализация прогноза
 function initForecast(
   tab, endpoint,
   futurePlotId, tableId,
@@ -269,7 +266,7 @@ function initForecast(
   };
 }
 
-// === запуск для обеих панелей ===
+// запуск для двух панелей
 initTrain(
   'Pop',
   'api/model/train',
