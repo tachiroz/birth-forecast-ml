@@ -1,2 +1,4 @@
 venv/
 *.pkl
+runs.jsonl
+best_runs.csv
