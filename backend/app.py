@@ -30,12 +30,11 @@ from sklearn.metrics import (
     r2_score
 )
 
-# === Paths ===
 BASE_DIR     = os.path.dirname(__file__)
 DATA_FOLDER  = os.path.join(BASE_DIR, 'data')
 MODEL_FOLDER = os.path.join(BASE_DIR, 'models')
 FRONTEND_DIR = os.path.join(BASE_DIR, '../frontend')
-RUNS_LOG     = os.path.join(BASE_DIR, 'runs.jsonl')  # файл для логов
+RUNS_LOG     = os.path.join(BASE_DIR, 'runs.jsonl') 
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
